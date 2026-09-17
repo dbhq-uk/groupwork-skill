@@ -41,6 +41,13 @@ class Provider:
     #: cannot honour that has to say so rather than quietly read it anyway.
     can_withhold_repo = True
 
+    #: Set where the adapter has never been run against the real CLI - written
+    #: from that CLI's documentation and issue tracker rather than from a
+    #: working invocation. It surfaces in `pairwork providers` and in the
+    #: provenance record, because "this ran through an unverified adapter" is
+    #: exactly the sort of thing a citation should carry rather than bury.
+    experimental = False
+
     def __init__(self, config=None):
         self.config = config or {}
 
@@ -58,6 +65,7 @@ class Provider:
             "sandboxes": list(self.sandboxes),
             "can_resume": self.can_resume,
             "can_withhold_repo": self.can_withhold_repo,
+            "experimental": self.experimental,
         }
 
     def run(self, brief_path, out_path, model, effort, sandbox, cwd, repo_access=True):

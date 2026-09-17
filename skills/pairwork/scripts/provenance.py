@@ -26,8 +26,8 @@ LEDGER = STATE / "runs.jsonl"
 FIELDS = [
     "id", "pattern", "provider", "cli_version", "model", "effort",
     "effort_requested", "effort_downgraded", "sandbox", "repo_access",
-    "started_utc", "ended_utc", "duration_s", "subject", "withheld",
-    "output_path",
+    "experimental_adapter", "started_utc", "ended_utc", "duration_s",
+    "subject", "withheld", "output_path",
 ]
 
 
@@ -67,6 +67,11 @@ def citation(run):
     line = ", ".join(bits)
 
     detail = f"withheld: {run['withheld']}"
+    if run.get("experimental_adapter"):
+        detail += (
+            f". Ran through pairwork's experimental {run['provider']} adapter, "
+            f"which has not been verified against the real CLI"
+        )
     if run["effort_downgraded"]:
         detail += (
             f". Ran at {run['effort']} effort, not the {run['effort_requested']} "

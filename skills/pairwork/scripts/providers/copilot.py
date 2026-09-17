@@ -34,6 +34,13 @@ class Copilot(Provider):
     can_resume = False
     can_withhold_repo = True
 
+    # This adapter has never been run against the real CLI. It is written from
+    # Copilot's own documentation and issue tracker, which means the two bugs
+    # above are coded around without either having been seen to fire, and the
+    # flag shapes below are documented rather than observed. Use codex or
+    # opencode where the answer matters; report what breaks here.
+    experimental = True
+
     def install_hint(self):
         return (
             "Install with 'gh copilot' (it downloads on first use), then "

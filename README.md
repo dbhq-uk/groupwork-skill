@@ -74,9 +74,17 @@ before paying for it.
 
 | Provider | Notes |
 |---|---|
-| `codex` | The default. Real kernel-enforced `--sandbox read-only` |
-| `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter |
-| `copilot` | No separate login where `gh` already works |
+| `codex` | The default. Real kernel-enforced `--sandbox read-only`. Verified |
+| `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Verified |
+| `copilot` | No separate login where `gh` already works. **Experimental at v0.1.0** |
+
+**The copilot adapter has never been run against the real CLI.** It is written
+from Copilot's own documentation and issue tracker, so the two bugs it codes
+around have not been seen to fire and the flag shapes are documented rather than
+observed. `pairwork providers` labels it, and any citation from a run through it
+carries the caveat - because a reader of the finding is the person who needs to
+know, and a README is not where they will look. Use `codex` or `opencode` where
+the answer matters, and please report what breaks.
 
 One honest difference, stated rather than papered over: Codex takes
 `--sandbox read-only` and the kernel enforces it. opencode has no sandbox -

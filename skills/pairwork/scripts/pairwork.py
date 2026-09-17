@@ -30,8 +30,13 @@ def cmd_providers(args):
     if working:
         print("Ready:")
         for name, version in sorted(working.items()):
-            default = "  (default)" if name == providers.DEFAULT else ""
-            print(f"  {name:<10} {version}{default}")
+            tags = []
+            if name == providers.DEFAULT:
+                tags.append("default")
+            if providers.get(name).experimental:
+                tags.append("experimental - adapter never run against the real CLI")
+            suffix = f"  ({'; '.join(tags)})" if tags else ""
+            print(f"  {name:<10} {version}{suffix}")
     if broken:
         print("\nNot ready:")
         for name, reason in sorted(broken.items()):

@@ -189,6 +189,31 @@ def test_the_citation_names_the_model_provider_version_and_what_was_withheld():
     assert "withheld" in line
 
 
+def test_an_unverified_adapter_says_so_in_its_own_citation():
+    """An adapter written from documentation is a caveat on the finding itself.
+
+    copilot's is, at v0.1.0. Burying that in a README would put the caveat
+    somewhere the person reading the review will never look.
+    """
+    Stub.experimental = True
+    try:
+        line = provenance.citation(go())
+        assert "experimental" in line
+        assert "not been verified against the real CLI" in line
+    finally:
+        Stub.experimental = False
+
+
+def test_a_verified_adapter_adds_no_caveat():
+    assert "experimental" not in provenance.citation(go())
+
+
+def test_copilot_is_the_experimental_one_at_this_version():
+    assert providers.get("copilot").experimental is True
+    assert providers.get("codex").experimental is False
+    assert providers.get("opencode").experimental is False
+
+
 def test_the_ledger_survives_a_half_written_line(tmp_path):
     provenance.LEDGER.write_text(
         json.dumps({"id": "good", "pattern": "verify"}) + "\n{\"id\": \"trunc",

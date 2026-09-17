@@ -134,10 +134,17 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py show 20260917T143000Z-a1b2c3
 `codex` by default. `opencode` carries other model families behind one adapter.
 `copilot` needs no separate login where `gh` already works.
 
-One honest difference: Codex takes `--sandbox read-only` and the kernel enforces
-it. opencode has no sandbox - read-only there means no `--auto` is passed, so a
-write attempt stalls rather than being refused. Both are recorded, and the
-citation names the provider, so a reader can weigh it.
+Two differences worth stating rather than papering over:
+
+**Sandboxing is not the same guarantee everywhere.** Codex takes
+`--sandbox read-only` and the kernel enforces it. opencode has no sandbox -
+read-only there means no `--auto` is passed, so a write attempt stalls rather
+than being refused. Both are recorded, and the citation names the provider.
+
+**`copilot` is experimental at v0.1.0.** Its adapter was written from Copilot's
+documentation and has never been run against the real CLI. `providers` labels
+it, and a citation from a run through it says so. Prefer `codex` or `opencode`
+when the answer matters.
 
 ## What this will not do
 
