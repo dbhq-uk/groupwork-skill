@@ -13,7 +13,7 @@ import patterns
 import provenance
 import providers
 import runner
-from providers.base import Provider, ProviderError
+from providers.base import Provider
 
 
 class Stub(Provider):
