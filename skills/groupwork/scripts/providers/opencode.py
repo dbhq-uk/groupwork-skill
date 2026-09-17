@@ -25,7 +25,7 @@ class Opencode(Provider):
     name = "opencode"
 
     # Written provider/model, which is the point of this adapter: one file,
-    # many model families. The list is what pairwork's patterns can ask for;
+    # many model families. The list is what groupwork's patterns can ask for;
     # opencode itself accepts anything its config knows about.
     models = [
         "anthropic/claude-opus-5",

@@ -4,14 +4,14 @@ Issues and pull requests are welcome.
 
 ## Before you start
 
-Read [`AGENTS.md`](AGENTS.md). It sets out the four rules pairwork does not
+Read [`AGENTS.md`](AGENTS.md). It sets out the four rules groupwork does not
 break and why each one exists. A change that weakens one will not be merged,
-however convenient - they are the reason a pairwork citation means anything.
+however convenient - they are the reason a groupwork citation means anything.
 
 ## Running the tests
 
 ```bash
-python3 -m pytest skills/pairwork/tests -q
+python3 -m pytest skills/groupwork/tests -q
 ```
 
 Python 3.9 or newer. Standard library plus pytest. Everything runs against a
@@ -19,7 +19,7 @@ stub provider, so you need no CLI installed, no credentials and no network.
 
 ## The most useful contribution
 
-**A new provider.** One file in `skills/pairwork/scripts/providers/`, one line
+**A new provider.** One file in `skills/groupwork/scripts/providers/`, one line
 in `REGISTRY`, three functions. `AGENTS.md` has the contract, and `opencode.py`
 is the worked example of declaring a capability honestly rather than
 generously.

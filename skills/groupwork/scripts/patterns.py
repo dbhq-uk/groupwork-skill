@@ -1,6 +1,6 @@
 """The five patterns. This file is the product.
 
-Everything else in pairwork is plumbing that exists to run one of these
+Everything else in groupwork is plumbing that exists to run one of these
 faithfully and record what happened. A pattern is four things:
 
   - a model and effort, because an adversary is worth paying for and a
@@ -122,7 +122,7 @@ EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra"]
 #: tests/test_guards.py asserts this list covers every trigger phrase in
 #: SKILL.md's own frontmatter, so the two cannot drift apart.
 TRIGGER_PHRASES = [
-    "pairwork",
+    "groupwork",
     "second opinion",
     "red team",
     "red-team",

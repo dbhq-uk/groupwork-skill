@@ -1,5 +1,5 @@
 ---
-name: pairwork
+name: groupwork
 description: >-
   Put a second agent on the work - as an adversary or as a partner - and get
   back a result you can cite. Five named patterns: red-team attacks an idea
@@ -7,13 +7,13 @@ description: >-
   without being shown your conclusion, verify rules on finished work against
   stated constraints, collaborate is a peer conversation, and debate runs blind
   proposals into adversarial rounds. Runs on Codex, opencode or Copilot behind
-  one provider layer. Use when the user says "pairwork", "second opinion",
+  one provider layer. Use when the user says "groupwork", "second opinion",
   "red team", "adversarial review", "cross-check this", "what does codex think",
   "what does claude think", or wants independent eyes before something ships.
 license: MIT
 ---
 
-# pairwork
+# groupwork
 
 A second agent on the work. The patterns are the product; the CLI underneath is
 swappable.
@@ -44,7 +44,7 @@ read it yourself. These calls are slow and they cost money.
 ## Check what is available
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py providers
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py providers
 ```
 
 Installed is not the same as authenticated, and every one of these CLIs installs
@@ -53,7 +53,7 @@ in a second and then refuses to run. The command distinguishes the two.
 ## Run one
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py run second-opinion \
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py run second-opinion \
   --subject "the Terraform tool research in docs/research/..." \
   --context "$(gh pr view 12 --json title,body -q '.body')" \
   --question "does the recommendation survive its own evidence?" \
@@ -87,7 +87,7 @@ First match wins:
 ## Debate
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py debate \
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py debate \
   --subject "queue or cron for the nightly reconcile" --rounds 2
 ```
 
@@ -116,8 +116,8 @@ Treat the counterpart as a colleague, not an authority.
 
 ## Citing it
 
-Every run appends to `~/.dbhq/pairwork/runs.jsonl` and keeps its raw output in
-`~/.dbhq/pairwork/runs/`. The command prints a citation line built from what
+Every run appends to `~/.dbhq/groupwork/runs.jsonl` and keeps its raw output in
+`~/.dbhq/groupwork/runs/`. The command prints a citation line built from what
 actually happened - model, provider, CLI version, sandbox, and what the brief
 withheld. Paste that line into whatever document the finding lands in.
 
@@ -125,8 +125,8 @@ The `withheld` field is copied from the pattern definition, not typed by anyone,
 so a `red-team` citation cannot claim an independence the run did not have.
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py history --limit 10
-python3 ${CLAUDE_SKILL_DIR}/scripts/pairwork.py show 20260917T143000Z-a1b2c3
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py history --limit 10
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py show 20260917T143000Z-a1b2c3
 ```
 
 ## Providers

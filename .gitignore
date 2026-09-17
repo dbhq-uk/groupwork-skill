@@ -16,11 +16,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# pairwork needs no virtualenv (stdlib only), but do not commit one if a
+# groupwork needs no virtualenv (stdlib only), but do not commit one if a
 # contributor makes one anyway.
 .venv/
 
-# Run records live in ~/.dbhq/pairwork/ and must never be inside a repo - a
+# Run records live in ~/.dbhq/groupwork/ and must never be inside a repo - a
 # brief can quote an unreleased document and the output quotes it back.
 runs.jsonl
 runs/

@@ -1,14 +1,14 @@
 """Provider registry.
 
 To add a fourth provider, write a module here that subclasses Provider and add
-it below. Nothing else in pairwork changes: the patterns, the briefs, the
+it below. Nothing else in groupwork changes: the patterns, the briefs, the
 withholding rules and the provenance record are all provider-neutral, which is
 the point of the layer.
 
 `claude -p` is the obvious next one and is deliberately absent. Run from inside
 Claude Code the counterpart would be the same model family as the host unless a
 different model is pinned, and "two models fail differently" is the entire
-premise. It becomes worth writing the day somebody runs pairwork from Codex.
+premise. It becomes worth writing the day somebody runs groupwork from Codex.
 """
 
 from .base import Provider, ProviderError  # noqa: F401  (re-exported)

@@ -45,7 +45,7 @@ class Stub(Provider):
 
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path, monkeypatch):
-    """Keep every test out of the real ~/.dbhq/pairwork/."""
+    """Keep every test out of the real ~/.dbhq/groupwork/."""
     monkeypatch.setattr(runner, "STATE", tmp_path)
     monkeypatch.setattr(provenance, "LEDGER", tmp_path / "runs.jsonl")
     monkeypatch.setitem(providers.REGISTRY, "stub", Stub)
@@ -212,6 +212,51 @@ def test_copilot_is_the_experimental_one_at_this_version():
     assert providers.get("copilot").experimental is True
     assert providers.get("codex").experimental is False
     assert providers.get("opencode").experimental is False
+
+
+def test_the_pairwork_state_directory_is_migrated_once(tmp_path, monkeypatch):
+    """The skill was pairwork for a few hours in public. Do not orphan those runs."""
+    old = tmp_path / "pairwork"
+    new = tmp_path / "groupwork"
+    (old / "runs").mkdir(parents=True)
+    (old / "runs" / "r1.md").write_text("a finding", encoding="utf-8")
+    (old / "runs.jsonl").write_text(
+        json.dumps({"id": "r1", "output_path": str(old / "runs" / "r1.md")}) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runner, "STATE", new)
+    monkeypatch.setattr(runner, "_OLD_STATE", old)
+
+    runner._migrate_from_pairwork()
+
+    assert not old.exists()
+    assert (new / "runs" / "r1.md").read_text(encoding="utf-8") == "a finding"
+    # The absolute path in the ledger is rewritten, or `show` breaks for every
+    # run made before the rename.
+    row = json.loads((new / "runs.jsonl").read_text(encoding="utf-8").strip())
+    assert row["output_path"] == str(new / "runs" / "r1.md")
+
+
+def test_the_migration_never_overwrites_an_existing_directory(tmp_path, monkeypatch):
+    old = tmp_path / "pairwork"
+    new = tmp_path / "groupwork"
+    old.mkdir()
+    new.mkdir()
+    (new / "runs.jsonl").write_text("mine\n", encoding="utf-8")
+    monkeypatch.setattr(runner, "STATE", new)
+    monkeypatch.setattr(runner, "_OLD_STATE", old)
+
+    runner._migrate_from_pairwork()
+
+    assert old.exists(), "the old directory was consumed despite a live new one"
+    assert (new / "runs.jsonl").read_text(encoding="utf-8") == "mine\n"
+
+
+def test_the_migration_is_a_no_op_for_a_fresh_install(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "STATE", tmp_path / "groupwork")
+    monkeypatch.setattr(runner, "_OLD_STATE", tmp_path / "pairwork")
+    runner._migrate_from_pairwork()
+    assert not (tmp_path / "groupwork").exists()
 
 
 def test_the_ledger_survives_a_half_written_line(tmp_path):

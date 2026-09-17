@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install the pairwork skill for Codex.
+# Install the groupwork skill for Codex.
 #
 # Codex does not substitute ${CLAUDE_SKILL_DIR}, so SKILL.md is rewritten with
 # the real installed path and the subdirectories are symlinked alongside it.
@@ -9,15 +9,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_ROOT="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 
-echo "=== pairwork skill installer (Codex) ==="
+echo "=== groupwork skill installer (Codex) ==="
 echo
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "pairwork needs python3."
+  echo "groupwork needs python3."
   exit 1
 fi
 if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
-  echo "pairwork needs Python 3.9 or newer; found $(python3 -V 2>&1)."
+  echo "groupwork needs Python 3.9 or newer; found $(python3 -V 2>&1)."
   exit 1
 fi
 echo "Dependencies OK ($(python3 -V 2>&1), standard library only)."
@@ -45,9 +45,9 @@ echo
 echo "Installed for Codex."
 echo
 echo "Next: check which counterparts are ready:"
-echo "  python3 $SKILLS_ROOT/pairwork/scripts/pairwork.py providers"
+echo "  python3 $SKILLS_ROOT/groupwork/scripts/groupwork.py providers"
 echo
-echo "pairwork stores no credentials - each provider CLI authenticates"
+echo "groupwork stores no credentials - each provider CLI authenticates"
 echo "itself. You need at least one of codex, opencode or copilot"
 echo "installed AND logged in."
 echo

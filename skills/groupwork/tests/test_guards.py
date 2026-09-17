@@ -1,4 +1,4 @@
-"""The four hard rules. If one of these fails, pairwork is lying about something.
+"""The four hard rules. If one of these fails, groupwork is lying about something.
 
 Each test names the rule it holds. They are the reason AGENTS.md says to read it
 before changing anything in scripts/.
@@ -69,7 +69,7 @@ def test_short_phrases_are_not_treated_as_leaks():
     assert brief.leaks("we should ship the thing", "we should ship the thing") == []
 
 
-# --- Rule 3: no brief contains pairwork's own trigger phrases ----------------
+# --- Rule 3: no brief contains groupwork's own trigger phrases ----------------
 
 @pytest.mark.parametrize("template", sorted(p.name for p in TEMPLATES.glob("*.md")))
 def test_templates_contain_no_trigger_phrases(template):
@@ -81,7 +81,7 @@ def test_templates_contain_no_trigger_phrases(template):
     """
     text = (TEMPLATES / template).read_text(encoding="utf-8")
     assert brief.find_triggers(text) == [], (
-        f"{template} contains trigger phrases that will re-trigger pairwork "
+        f"{template} contains trigger phrases that will re-trigger groupwork "
         f"at the far end"
     )
 

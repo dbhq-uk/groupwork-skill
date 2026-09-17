@@ -1,6 +1,6 @@
 """Record what happened, and hand back a line that can be cited.
 
-This is the part that separates pairwork from a wrapper round a CLI.
+This is the part that separates groupwork from a wrapper round a CLI.
 
 The research in the DBHQ repository carries lines like "given the keyword data
 but none of the GitHub or community evidence, so its conclusions are independent
@@ -44,7 +44,7 @@ def citation(run):
     """The line to paste into the document the finding ends up in.
 
     Deliberately the shape already used in the DBHQ research folder, so an
-    existing document and a pairwork-generated one read the same.
+    existing document and a groupwork-generated one read the same.
     """
     label = {
         "red-team": "Red team",
@@ -69,7 +69,7 @@ def citation(run):
     detail = f"withheld: {run['withheld']}"
     if run.get("experimental_adapter"):
         detail += (
-            f". Ran through pairwork's experimental {run['provider']} adapter, "
+            f". Ran through groupwork's experimental {run['provider']} adapter, "
             f"which has not been verified against the real CLI"
         )
     if run["effort_downgraded"]:

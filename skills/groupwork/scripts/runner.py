@@ -23,7 +23,47 @@ import uuid
 import patterns
 import providers
 
-STATE = pathlib.Path(os.environ.get("PAIRWORK_HOME", pathlib.Path.home() / ".dbhq" / "pairwork"))
+STATE = pathlib.Path(os.environ.get("GROUPWORK_HOME", pathlib.Path.home() / ".dbhq" / "groupwork"))
+
+#: This skill was called `pairwork` for its first hours in public, on
+#: 17 Sep 2026. Anyone who installed it in that window has run records under the
+#: old name, and a rename that silently orphans them would lose exactly the
+#: thing the skill exists to keep.
+_OLD_STATE = pathlib.Path.home() / ".dbhq" / "pairwork"
+
+
+def _migrate_from_pairwork():
+    """Move ~/.dbhq/pairwork/ to ~/.dbhq/groupwork/ once, on first run.
+
+    Guarded on the new directory not existing, so it is a no-op for every
+    install after the first and for every install that never saw the old name.
+
+    The ledger stores absolute output paths, so they are rewritten as part of
+    the move - otherwise `groupwork show <id>` would fail on every run made
+    before the rename, which is the same as having lost them.
+    """
+    if STATE.exists() or not _OLD_STATE.exists():
+        return
+    try:
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        _OLD_STATE.rename(STATE)
+    except OSError:
+        return  # Not worth failing a run over; the new directory is made below.
+    ledger = STATE / "runs.jsonl"
+    if not ledger.exists():
+        return
+    try:
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8").replace(
+                str(_OLD_STATE), str(STATE)
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+_migrate_from_pairwork()
 
 
 class RunFailed(RuntimeError):
@@ -52,7 +92,7 @@ def _isolated_cwd():
     directory is what makes "its conclusions are independent of our retrieval"
     a statement of fact rather than a hope.
     """
-    return tempfile.mkdtemp(prefix="pairwork-norepo-")
+    return tempfile.mkdtemp(prefix="groupwork-norepo-")
 
 
 def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
@@ -97,7 +137,7 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     out_path = runs / f"{run_id}.md"
     log_path = runs / f"{run_id}.log"
 
-    brief_fd, brief_path = tempfile.mkstemp(prefix="pairwork-brief-", suffix=".md")
+    brief_fd, brief_path = tempfile.mkstemp(prefix="groupwork-brief-", suffix=".md")
     with os.fdopen(brief_fd, "w", encoding="utf-8") as handle:
         handle.write(brief_text)
 
@@ -148,7 +188,7 @@ def _pick_model(wanted, supported):
     """Use the pattern's model if the provider has it, else the provider's first.
 
     No cleverness here on purpose. A provider that does not carry `gpt-6-astra`
-    is not going to have a near-equivalent that pairwork can identify reliably,
+    is not going to have a near-equivalent that groupwork can identify reliably,
     and guessing one would put a model name in the record that nobody chose.
     """
     if not supported or wanted in supported:

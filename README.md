@@ -1,11 +1,11 @@
-# pairwork
+# groupwork
 
 Put a second agent on the work - as an adversary or as a partner - and get back
 a result you can cite.
 
 ```bash
 /plugin marketplace add dbhq-uk/marketplace
-/plugin install pairwork@dbhq
+/plugin install groupwork@dbhq
 ```
 
 ## What it is
@@ -35,7 +35,7 @@ retrieval"*. A reader's only reason to trust that finding is the claim that the
 reviewer really was starved of the material - and that claim is almost always
 written afterwards, from memory, by the person who ran it.
 
-pairwork writes the record at the moment of the run, from the pattern
+groupwork writes the record at the moment of the run, from the pattern
 definition. Nobody types the independence claim, so nobody can type one that is
 not true.
 
@@ -49,22 +49,22 @@ evidence and our retrieval - it is told the claim, not where we looked.
 
 ```bash
 # which counterparts are installed AND authenticated - not the same thing
-python3 scripts/pairwork.py providers
+python3 scripts/groupwork.py providers
 
 # attack an idea, without showing it where you looked
-python3 scripts/pairwork.py run red-team \
+python3 scripts/groupwork.py run red-team \
   --subject "a CLI that posts physical letters, priced per letter" \
   --context "UK only. Signed For and Tracked. No subscription."
 
 # an independent read of a document, with a guard against your own view leaking in
-python3 scripts/pairwork.py run second-opinion \
+python3 scripts/groupwork.py run second-opinion \
   --subject "the recommendation in docs/research/foo.md" \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 
 # blind proposals, then adversarial rounds, fresh session each time
-python3 scripts/pairwork.py debate --subject "queue or cron" --rounds 2
+python3 scripts/groupwork.py debate --subject "queue or cron" --rounds 2
 
-python3 scripts/pairwork.py history
+python3 scripts/groupwork.py history
 ```
 
 `--dry-run` prints the brief and runs nothing, so you can read what will be sent
@@ -81,7 +81,7 @@ before paying for it.
 **The copilot adapter has never been run against the real CLI.** It is written
 from Copilot's own documentation and issue tracker, so the two bugs it codes
 around have not been seen to fire and the flag shapes are documented rather than
-observed. `pairwork providers` labels it, and any citation from a run through it
+observed. `groupwork providers` labels it, and any citation from a run through it
 carries the caveat - because a reader of the finding is the person who needs to
 know, and a README is not where they will look. Use `codex` or `opencode` where
 the answer matters, and please report what breaks.
@@ -94,7 +94,7 @@ of being refused. Both are recorded and the citation names the provider.
 `claude -p` is deliberately absent. Run from inside Claude Code the counterpart
 would be the same model family as the host unless a different model is pinned,
 and "two models fail differently" is the entire premise. It becomes worth
-writing the day somebody runs pairwork from Codex.
+writing the day somebody runs groupwork from Codex.
 
 ## Four rules it will not break
 
@@ -106,7 +106,7 @@ Each has a test. `AGENTS.md` is the file to read before changing anything.
    only at completion, so a killed run leaves a zero-byte file; Copilot has a
    bug where it exits 0 having written nothing. Both otherwise read as "the
    reviewer found no issues".
-3. **No brief contains pairwork's own trigger phrases.** The far end very likely
+3. **No brief contains groupwork's own trigger phrases.** The far end very likely
    has this skill installed; a brief saying "second opinion" trips its copy,
    which tries to delegate to a third agent and returns an apology instead of a
    review.
@@ -127,7 +127,7 @@ Each has a test. `AGENTS.md` is the file to read before changing anything.
 Python 3.9 or newer, standard library only. At least one provider CLI installed
 **and authenticated** - that is the real barrier to entry, not the install.
 
-State lives in `~/.dbhq/pairwork/` (mode 700): raw output per run, and one JSONL
+State lives in `~/.dbhq/groupwork/` (mode 700): raw output per run, and one JSONL
 line each in `runs.jsonl`. No credentials are stored; every provider
 authenticates itself.
 

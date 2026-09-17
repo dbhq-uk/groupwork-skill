@@ -1,11 +1,11 @@
 """Assemble a brief, and refuse to assemble a bad one.
 
-Two of pairwork's four hard rules live here, and both are enforced rather than
+Two of groupwork's four hard rules live here, and both are enforced rather than
 requested. A rule written into a template is a suggestion to whoever edits the
 template next; a rule that raises is a rule.
 
   Rule 1 - a blind pattern's brief must not carry our conclusion.
-  Rule 3 - no brief may contain pairwork's own trigger phrases.
+  Rule 3 - no brief may contain groupwork's own trigger phrases.
 
 Rule 3 looks like fussiness and is not. The counterpart very likely has this
 skill installed. A brief that says "give me a second opinion on this" trips its
@@ -124,7 +124,7 @@ def build(pattern_name, subject, context="", question="", our_view=None,
     found = find_triggers(text)
     if found:
         raise BriefError(
-            "the brief contains phrases that will re-trigger pairwork at the far "
+            "the brief contains phrases that will re-trigger groupwork at the far "
             f"end, so it would delegate instead of reviewing: {', '.join(sorted(set(found)))}. "
             "Reword the subject or context without them."
         )

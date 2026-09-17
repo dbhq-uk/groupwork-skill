@@ -1,13 +1,13 @@
-# Working on pairwork
+# Working on groupwork
 
-Read this before changing anything in `skills/pairwork/scripts/`.
+Read this before changing anything in `skills/groupwork/scripts/`.
 
 ## The thing that makes this skill worth having
 
 Not the CLI wrapping. Anyone can shell out to `codex exec`, and OpenAI ship a
 better-plumbed version of that themselves.
 
-What pairwork has is a **withholding rule per pattern, enforced in code, and
+What groupwork has is a **withholding rule per pattern, enforced in code, and
 recorded at the moment of the run**. A red-team citation says the counterpart
 was starved of the material because it demonstrably was - it ran in an empty
 directory, and the field saying so was copied from the pattern definition rather
@@ -19,7 +19,7 @@ convenient.
 
 ## The four rules
 
-Each has tests in `skills/pairwork/tests/`. Do not weaken one to make something
+Each has tests in `skills/groupwork/tests/`. Do not weaken one to make something
 else easier.
 
 ### 1. A blind pattern's brief never carries our conclusion
@@ -43,7 +43,7 @@ written nothing at all ([#1181](https://github.com/github/copilot-cli/issues/118
 Read either as success and you report "the reviewer found no issues" about a
 review that never happened. `runner.run()` raises instead.
 
-### 3. No brief contains pairwork's own trigger phrases
+### 3. No brief contains groupwork's own trigger phrases
 
 The far end very likely has this skill installed. A brief containing "second
 opinion" fires its copy of the protocol, which tries to delegate to a third
@@ -83,7 +83,7 @@ an overstated citation.
 
 ## Changing a pattern
 
-`patterns.py` is the product. A change there is a change to what a pairwork
+`patterns.py` is the product. A change there is a change to what a groupwork
 citation means, so:
 
 - Changing `withholds` changes what every past citation of that pattern claimed.
@@ -95,7 +95,7 @@ citation means, so:
 
 ## Templates
 
-Prose, in `skills/pairwork/templates/`. Two constraints beyond taste:
+Prose, in `skills/groupwork/templates/`. Two constraints beyond taste:
 
 - No trigger phrases (rule 3, tested per template).
 - Never ask the counterpart to change anything. A read-only sandbox asked to
@@ -104,7 +104,7 @@ Prose, in `skills/pairwork/templates/`. Two constraints beyond taste:
 ## Tests
 
 ```bash
-python3 -m pytest skills/pairwork/tests -q
+python3 -m pytest skills/groupwork/tests -q
 ```
 
 Standard library plus pytest. Everything runs against a stub provider, so no
@@ -113,6 +113,6 @@ CLI, no credentials and no network are needed.
 ## House style
 
 British English. Plain hyphens, never em or en dashes. No trailing full stop on
-a heading. `pairwork` is lowercase everywhere, including at the start of a
+a heading. `groupwork` is lowercase everywhere, including at the start of a
 sentence - but the products it talks to keep their own capitalisation: Codex,
 GitHub Copilot, opencode as its own project styles it.

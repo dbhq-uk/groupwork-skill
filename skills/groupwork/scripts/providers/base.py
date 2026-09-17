@@ -1,6 +1,6 @@
 """What a counterpart CLI has to be able to do.
 
-pairwork ships with three providers. The interface exists so that adding a
+groupwork ships with three providers. The interface exists so that adding a
 fourth is a new file rather than a rewrite - but it is deliberately shaped
 around what a *second opinion* needs, not around what any one vendor's CLI
 happens to offer.
@@ -43,7 +43,7 @@ class Provider:
 
     #: Set where the adapter has never been run against the real CLI - written
     #: from that CLI's documentation and issue tracker rather than from a
-    #: working invocation. It surfaces in `pairwork providers` and in the
+    #: working invocation. It surfaces in `groupwork providers` and in the
     #: provenance record, because "this ran through an unverified adapter" is
     #: exactly the sort of thing a citation should carry rather than bury.
     experimental = False

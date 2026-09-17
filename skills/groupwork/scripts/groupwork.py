@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""pairwork - put a second agent on the work, as an adversary or as a partner.
+"""groupwork - put a second agent on the work, as an adversary or as a partner.
 
-    pairwork.py providers
-    pairwork.py patterns
-    pairwork.py run <pattern> --subject ... [--context ...] [--provider ...]
-    pairwork.py debate --subject ... [--rounds 2]
-    pairwork.py history [--limit 10]
-    pairwork.py show <run-id>
+    groupwork.py providers
+    groupwork.py patterns
+    groupwork.py run <pattern> --subject ... [--context ...] [--provider ...]
+    groupwork.py debate --subject ... [--rounds 2]
+    groupwork.py history [--limit 10]
+    groupwork.py show <run-id>
 
 Standard library only. Every provider authenticates itself, so there is nothing
 to configure and no credential to store.
@@ -181,7 +181,7 @@ def cmd_show(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="pairwork",
+        prog="groupwork",
         description="Put a second agent on the work - as an adversary or a partner.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
