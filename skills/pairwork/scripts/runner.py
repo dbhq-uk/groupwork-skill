@@ -1,0 +1,158 @@
+"""Run a brief through a provider, and be honest about what happened.
+
+Every rule below is a failure someone has actually had, not a precaution.
+
+  - The brief goes in from a file on stdin. Long text and shell quoting do not
+    mix, and two of the three providers exceed ARG_MAX on a real diff.
+  - Empty output is a failure. Codex writes its result only at completion, so a
+    killed run leaves a zero-byte file and no error; Copilot has a bug where it
+    exits 0 having written nothing. Both look like "the reviewer found no
+    issues" unless something refuses to read them that way.
+  - The effort actually used is recorded, not the effort asked for. A provider
+    that cannot reach `high` runs at its ceiling and the record says so.
+  - Nothing is retried automatically. A failed adversarial run costs money and
+    a retry that silently changes the conditions makes the record meaningless.
+"""
+
+import os
+import pathlib
+import tempfile
+import time
+import uuid
+
+import patterns
+import providers
+
+STATE = pathlib.Path(os.environ.get("PAIRWORK_HOME", pathlib.Path.home() / ".dbhq" / "pairwork"))
+
+
+class RunFailed(RuntimeError):
+    """The run did not produce a usable answer, and the reason is in the message."""
+
+
+def _state_dir():
+    runs = STATE / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    # 700 like every other ~/.dbhq/<skill>/, and the same on runs/ rather than
+    # whatever umask gives. There are no credentials here - every provider
+    # authenticates itself - but a brief can quote an unreleased document and
+    # the output quotes it straight back.
+    for path in (STATE, runs):
+        try:
+            path.chmod(0o700)
+        except OSError:
+            pass
+    return runs
+
+
+def _isolated_cwd():
+    """A directory with nothing in it, for a pattern that withholds the repo.
+
+    red-team runs here by default. Pointing the counterpart at an empty
+    directory is what makes "its conclusions are independent of our retrieval"
+    a statement of fact rather than a hope.
+    """
+    return tempfile.mkdtemp(prefix="pairwork-norepo-")
+
+
+def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
+        repo_access=None, model=None, effort=None, allow_write=False,
+        subject="", timeout=None):
+    """Run one brief. Returns a record dict; raises RunFailed on anything else."""
+    spec = patterns.get(pattern_name)
+    provider = providers.get(provider_name)
+    caps = provider.capabilities()
+
+    version = provider.probe()  # raises ProviderError with the reason
+
+    sandbox = spec["sandbox"]
+    if allow_write:
+        # Hard rule 4. Getting here requires the caller to have asked the user
+        # in this run - the flag is not sticky and is not read from config.
+        if "workspace-write" not in caps["sandboxes"]:
+            raise RunFailed(
+                f"{provider.name} does not offer a write sandbox"
+            )
+        sandbox = "workspace-write"
+    elif sandbox not in caps["sandboxes"]:
+        raise RunFailed(
+            f"{provider.name} cannot run {sandbox}; it offers "
+            f"{', '.join(caps['sandboxes'])}"
+        )
+
+    wanted_effort = effort or spec["effort"]
+    used_effort, downgraded = patterns.resolve_effort(wanted_effort, caps["efforts"])
+    used_model = model or _pick_model(spec["model"], caps["models"])
+
+    if repo_access is None:
+        repo_access = spec["repo_access"]
+    workdir = cwd or os.getcwd()
+    if not repo_access:
+        workdir = _isolated_cwd()
+
+    timeout = timeout or patterns.TIMEOUTS.get(used_effort, 600)
+
+    run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
+    runs = _state_dir()
+    out_path = runs / f"{run_id}.md"
+    log_path = runs / f"{run_id}.log"
+
+    brief_fd, brief_path = tempfile.mkstemp(prefix="pairwork-brief-", suffix=".md")
+    with os.fdopen(brief_fd, "w", encoding="utf-8") as handle:
+        handle.write(brief_text)
+
+    started = time.time()
+    try:
+        provider.run(
+            brief_path, str(out_path), used_model, used_effort, sandbox,
+            workdir, repo_access=repo_access, log_path=str(log_path),
+            timeout=timeout,
+        )
+    except providers.ProviderError as exc:
+        raise RunFailed(str(exc)) from None
+    finally:
+        ended = time.time()
+        os.unlink(brief_path)
+
+    text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
+    if not text.strip():
+        raise RunFailed(
+            f"{provider.name} returned nothing. This is a failed run, not a "
+            f"clean review - do not report it as 'no issues found'. The log is "
+            f"at {log_path}."
+        )
+
+    return {
+        "id": run_id,
+        "pattern": pattern_name,
+        "provider": provider.name,
+        "cli_version": version,
+        "model": used_model,
+        "effort": used_effort,
+        "effort_requested": wanted_effort,
+        "effort_downgraded": downgraded,
+        "sandbox": sandbox,
+        "repo_access": bool(repo_access),
+        "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
+        "ended_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ended)),
+        "duration_s": round(ended - started, 1),
+        "subject": subject or "(unstated)",
+        "withheld": spec["withholds"],
+        "output_path": str(out_path),
+        "output": text,
+    }
+
+
+def _pick_model(wanted, supported):
+    """Use the pattern's model if the provider has it, else the provider's first.
+
+    No cleverness here on purpose. A provider that does not carry `gpt-6-astra`
+    is not going to have a near-equivalent that pairwork can identify reliably,
+    and guessing one would put a model name in the record that nobody chose.
+    """
+    if not supported or wanted in supported:
+        return wanted
+    for name in supported:
+        if name.endswith("/" + wanted) or name == wanted:
+            return name
+    return supported[0]

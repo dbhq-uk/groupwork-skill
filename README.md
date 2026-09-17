@@ -1,0 +1,128 @@
+# pairwork
+
+Put a second agent on the work - as an adversary or as a partner - and get back
+a result you can cite.
+
+```bash
+/plugin marketplace add dbhq-uk/marketplace
+/plugin install pairwork@dbhq
+```
+
+## What it is
+
+Five named patterns for using a second AI agent, running on Codex, opencode or
+GitHub Copilot behind one provider layer.
+
+The patterns are the product. The reason this is not a wrapper around
+`codex exec` is the **withholding rule**: a second opinion that has already been
+told your conclusion is not a second opinion, it is agreement with extra steps.
+Three of the five patterns refuse to carry your view at all, and the refusal is
+enforced in code rather than requested in prose.
+
+| Pattern | Use it when | It is not told |
+|---|---|---|
+| `red-team` | You want the idea killed if it deserves killing | Your evidence, and by default the repository itself |
+| `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
+| `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
+| `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
+| `debate` | A hard call where the trade-off is the answer | The other side, in round 0 |
+
+## Why the withholding matters
+
+Research write-ups routinely carry a line like *"given the keyword data but none
+of the community evidence, so its conclusions are independent of the
+retrieval"*. A reader's only reason to trust that finding is the claim that the
+reviewer really was starved of the material - and that claim is almost always
+written afterwards, from memory, by the person who ran it.
+
+pairwork writes the record at the moment of the run, from the pattern
+definition. Nobody types the independence claim, so nobody can type one that is
+not true.
+
+```
+**Red team:** `gpt-6-astra` via codex (codex-cli 0.154.0), 2026-09-17,
+read-only, no repository access. Run `20260917T165202Z-a037c3`, withheld: our
+evidence and our retrieval - it is told the claim, not where we looked.
+```
+
+## Use
+
+```bash
+# which counterparts are installed AND authenticated - not the same thing
+python3 scripts/pairwork.py providers
+
+# attack an idea, without showing it where you looked
+python3 scripts/pairwork.py run red-team \
+  --subject "a CLI that posts physical letters, priced per letter" \
+  --context "UK only. Signed For and Tracked. No subscription."
+
+# an independent read of a document, with a guard against your own view leaking in
+python3 scripts/pairwork.py run second-opinion \
+  --subject "the recommendation in docs/research/foo.md" \
+  --assert-withholds "$MY_DRAFT_CONCLUSION"
+
+# blind proposals, then adversarial rounds, fresh session each time
+python3 scripts/pairwork.py debate --subject "queue or cron" --rounds 2
+
+python3 scripts/pairwork.py history
+```
+
+`--dry-run` prints the brief and runs nothing, so you can read what will be sent
+before paying for it.
+
+## Providers
+
+| Provider | Notes |
+|---|---|
+| `codex` | The default. Real kernel-enforced `--sandbox read-only` |
+| `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter |
+| `copilot` | No separate login where `gh` already works |
+
+One honest difference, stated rather than papered over: Codex takes
+`--sandbox read-only` and the kernel enforces it. opencode has no sandbox -
+read-only there means `--auto` is not passed, so a write attempt stalls instead
+of being refused. Both are recorded and the citation names the provider.
+
+`claude -p` is deliberately absent. Run from inside Claude Code the counterpart
+would be the same model family as the host unless a different model is pinned,
+and "two models fail differently" is the entire premise. It becomes worth
+writing the day somebody runs pairwork from Codex.
+
+## Four rules it will not break
+
+Each has a test. `AGENTS.md` is the file to read before changing anything.
+
+1. **A blind pattern's brief never carries your conclusion.** Passing it is an
+   error, not a silently ignored argument.
+2. **Empty output is a failure, never a clean review.** Codex writes its result
+   only at completion, so a killed run leaves a zero-byte file; Copilot has a
+   bug where it exits 0 having written nothing. Both otherwise read as "the
+   reviewer found no issues".
+3. **No brief contains pairwork's own trigger phrases.** The far end very likely
+   has this skill installed; a brief saying "second opinion" trips its copy,
+   which tries to delegate to a third agent and returns an apology instead of a
+   review.
+4. **No write sandbox without a decision in that run.** All five patterns are
+   read-only by default.
+
+## What it will not do
+
+- **Delegate work.** There is no "go and build this" mode. OpenAI's own
+  [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) already does that
+  well, and it is the mode where a sandbox mistake costs real money.
+- **Write findings into your repo.** It records the run and hands you a
+  citation. Where a finding belongs is your call.
+- **Score or benchmark the counterpart.** It reports what the other agent said.
+
+## Requirements
+
+Python 3.9 or newer, standard library only. At least one provider CLI installed
+**and authenticated** - that is the real barrier to entry, not the install.
+
+State lives in `~/.dbhq/pairwork/` (mode 700): raw output per run, and one JSONL
+line each in `runs.jsonl`. No credentials are stored; every provider
+authenticates itself.
+
+## Licence
+
+MIT. Built by [DBHQ](https://dbhq.uk).
