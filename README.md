@@ -19,6 +19,25 @@ A free, open-source tool by [DBHQ](https://dbhq.uk) - documented at [skills.dbhq
 Put a second agent on the work - as an adversary or as a partner - and get back
 a result you can cite.
 
+## What makes it different
+
+Five named patterns for using a second AI agent, running on Codex, opencode or
+GitHub Copilot behind one provider layer.
+
+The patterns are the product. The reason this is not a wrapper around
+`codex exec` is the **withholding rule**: a second opinion that has already been
+told your conclusion is not a second opinion, it is agreement with extra steps.
+Three of the five patterns refuse to carry your view at all, and the refusal is
+enforced in code rather than requested in prose.
+
+| Pattern | Use it when | It is not told |
+|---|---|---|
+| `red-team` | You want the idea killed if it deserves killing | Your evidence, and by default the repository itself |
+| `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
+| `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
+| `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
+| `debate` | A hard call where the trade-off is the answer | The other side, in round 0 |
+
 ## Install
 
 ### As a Claude Code plugin (recommended)
@@ -52,24 +71,14 @@ whole skill directory is symlinked untouched, while Codex does not, so its
 `SKILL.md` is rewritten at install time. Re-run the Codex one after editing
 `SKILL.md`.
 
-## What it is
+## Requirements
 
-Five named patterns for using a second AI agent, running on Codex, opencode or
-GitHub Copilot behind one provider layer.
+Python 3.9 or newer, standard library only. At least one provider CLI installed
+**and authenticated** - that is the real barrier to entry, not the install.
 
-The patterns are the product. The reason this is not a wrapper around
-`codex exec` is the **withholding rule**: a second opinion that has already been
-told your conclusion is not a second opinion, it is agreement with extra steps.
-Three of the five patterns refuse to carry your view at all, and the refusal is
-enforced in code rather than requested in prose.
-
-| Pattern | Use it when | It is not told |
-|---|---|---|
-| `red-team` | You want the idea killed if it deserves killing | Your evidence, and by default the repository itself |
-| `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
-| `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
-| `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
-| `debate` | A hard call where the trade-off is the answer | The other side, in round 0 |
+State lives in `~/.dbhq/groupwork/` (mode 700): raw output per run, and one JSONL
+line each in `runs.jsonl`. No credentials are stored; every provider
+authenticates itself.
 
 ## Why the withholding matters
 
@@ -165,15 +174,6 @@ Each has a test. `AGENTS.md` is the file to read before changing anything.
 - **Write findings into your repo.** It records the run and hands you a
   citation. Where a finding belongs is your call.
 - **Score or benchmark the counterpart.** It reports what the other agent said.
-
-## Requirements
-
-Python 3.9 or newer, standard library only. At least one provider CLI installed
-**and authenticated** - that is the real barrier to entry, not the install.
-
-State lives in `~/.dbhq/groupwork/` (mode 700): raw output per run, and one JSONL
-line each in `runs.jsonl`. No credentials are stored; every provider
-authenticates itself.
 
 ## Also from DBHQ
 
