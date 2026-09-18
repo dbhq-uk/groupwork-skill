@@ -197,6 +197,7 @@ itself is [dbhq-uk/marketplace](https://github.com/dbhq-uk/marketplace) - one
 | [pennyblack](https://skills.dbhq.uk/pennyblack/) | A physical letter, posted from the terminal |
 | [buildwork](https://skills.dbhq.uk/buildwork/) | Your open issues, run as parallel agents |
 | [deskwork](https://skills.dbhq.uk/deskwork/) | What an agent noticed, tracked as real work |
+| [headwork](https://skills.dbhq.uk/headwork/) | One decision at a time, with a recommendation |
 
 Plus [heliograph](https://skills.dbhq.uk/heliograph/), for a machine you cannot log into.
 
