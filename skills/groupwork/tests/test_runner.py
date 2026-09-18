@@ -192,7 +192,7 @@ def test_the_citation_names_the_model_provider_version_and_what_was_withheld():
 def test_an_unverified_adapter_says_so_in_its_own_citation():
     """An adapter written from documentation is a caveat on the finding itself.
 
-    copilot's is, at v0.1.0. Burying that in a README would put the caveat
+    copilot's is. Burying that in a README would put the caveat
     somewhere the person reading the review will never look.
     """
     Stub.experimental = True

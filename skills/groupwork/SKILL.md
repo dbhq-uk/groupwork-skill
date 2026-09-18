@@ -141,10 +141,10 @@ Two differences worth stating rather than papering over:
 read-only there means no `--auto` is passed, so a write attempt stalls rather
 than being refused. Both are recorded, and the citation names the provider.
 
-**`copilot` is experimental at v0.1.0.** Its adapter was written from Copilot's
-documentation and has never been run against the real CLI. `providers` labels
-it, and a citation from a run through it says so. Prefer `codex` or `opencode`
-when the answer matters.
+**The `copilot` adapter is experimental, and that is the adapter rather than
+the skill.** It was written from Copilot's documentation and has never been run
+against the real CLI. `providers` labels it, and a citation from a run through
+it says so. Prefer `codex` or `opencode` when the answer matters.
 
 ## What this will not do
 

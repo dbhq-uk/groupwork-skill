@@ -129,7 +129,7 @@ before paying for it.
 |---|---|
 | `codex` | The default. Real kernel-enforced `--sandbox read-only`. Verified |
 | `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Verified |
-| `copilot` | No separate login where `gh` already works. **Experimental at v0.1.0** |
+| `copilot` | No separate login where `gh` already works. **Experimental: the adapter has never been run against the real CLI** |
 
 **The copilot adapter has never been run against the real CLI.** It is written
 from Copilot's own documentation and issue tracker, so the two bugs it codes
