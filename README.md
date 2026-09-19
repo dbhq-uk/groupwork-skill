@@ -27,6 +27,7 @@ GitHub Copilot behind one provider layer.
 The patterns are the product. The reason this is not a wrapper around
 `codex exec` is the **withholding rule**: a second opinion that has already been
 told your conclusion is not a second opinion, it is agreement with extra steps.
+
 Three of the five patterns refuse to carry your view at all, and the refusal is
 enforced in code rather than requested in prose.
 
