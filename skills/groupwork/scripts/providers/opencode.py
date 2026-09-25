@@ -7,18 +7,83 @@ And it is itself a multi-model front end, so Gemini, Grok, Qwen and anything
 running locally arrive behind this one file rather than one adapter each.
 
 It is also the provider with the honest gap, and the gap is instructive.
-opencode has no sandbox flag. Codex takes `--sandbox read-only` and the kernel
-enforces it; opencode has a permission prompt instead, and in a headless run
-there is nobody to answer it. So read-only here means "do not pass --auto, and
-let a write attempt stall until the timeout kills it" - real, but enforced by
-absence rather than by a sandbox. capabilities() says so, the runner passes it
-on, and the provenance record names the provider, so a reader can weigh the
-difference. What it must never do is claim the same guarantee Codex gives.
+opencode has no sandbox. Codex takes `--sandbox read-only` and the kernel
+enforces it. opencode governs its tools with permissions instead, and most of
+them default to allow, so a headless run left to its defaults can edit files,
+run bash and fetch from the web. Leaving out `--auto` changes nothing about
+that: `--auto` only approves what would otherwise ask.
+
+So every run passes an inline config in `OPENCODE_CONFIG_CONTENT` that denies
+`edit`, `bash` (apart from read-only `git` subcommands), `webfetch`,
+`websearch`, `task`, `skill` and `external_directory`. Inline config outranks
+project and user config. The same rules are set on the `build` agent as well as
+globally, because an agent's own permissions are applied after the global ones
+and would otherwise win, and the run names `--agent build` so it is that agent
+that runs.
+
+That is a tool-permission deny enforced by opencode itself, not a sandbox. A
+bug in opencode's permission checks, or an allowed `git` subcommand given a flag
+that writes, is not contained the way the kernel contains Codex. capabilities()
+offers only read-only, and the provenance record names the provider, so a
+reader can weigh the difference. What it must never do is claim the same
+guarantee Codex gives.
 """
 
+import json
+import os
 import subprocess
 
 from .base import Provider, ProviderError
+
+#: What a read-only review may do, as opencode permission rules. Last match
+#: wins, so the blanket bash deny comes first and the git reads after it.
+READ_ONLY_PERMISSIONS = {
+    "edit": "deny",
+    "bash": {
+        "*": "deny",
+        "git status*": "allow",
+        "git log*": "allow",
+        "git diff*": "allow",
+        "git show*": "allow",
+        "git blame*": "allow",
+        "git ls-files*": "allow",
+        "git grep*": "allow",
+    },
+    "webfetch": "deny",
+    "websearch": "deny",
+    # The brief tells it not to hand the work to another agent or skill. These
+    # two make that a rule rather than a request.
+    "task": "deny",
+    "skill": "deny",
+    "external_directory": "deny",
+}
+
+#: The agent every run uses. Its permissions are set as well as the global
+#: ones; see the module docstring.
+AGENT = "build"
+
+
+def read_only_env(base=None):
+    """The child's environment, carrying the read-only permission config.
+
+    Anything else already in a caller's own OPENCODE_CONFIG_CONTENT is kept. The
+    permission rules, global and for the agent that runs, are always ours.
+    """
+    env = dict(os.environ if base is None else base)
+    try:
+        config = json.loads(env.get("OPENCODE_CONFIG_CONTENT") or "{}")
+    except json.JSONDecodeError:
+        config = {}
+    if not isinstance(config, dict):
+        config = {}
+    config["permission"] = READ_ONLY_PERMISSIONS
+    agents = config.get("agent") if isinstance(config.get("agent"), dict) else {}
+    agent = agents.get(AGENT) if isinstance(agents.get(AGENT), dict) else {}
+    agent["permission"] = READ_ONLY_PERMISSIONS
+    agents[AGENT] = agent
+    config["agent"] = agents
+    env["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
+    return env
 
 
 class Opencode(Provider):
@@ -38,7 +103,7 @@ class Opencode(Provider):
     # --variant carries provider-specific reasoning effort.
     efforts = ["minimal", "low", "medium", "high", "max"]
     # Deliberately only one. See the module docstring: offering
-    # "workspace-write" would imply a boundary this CLI does not enforce.
+    # "workspace-write" would imply a boundary this adapter does not set up.
     sandboxes = ["read-only"]
     can_resume = True
     can_withhold_repo = True
@@ -56,13 +121,14 @@ class Opencode(Provider):
                 "opencode: only read-only is offered, because it has no sandbox "
                 "to enforce anything stronger"
             )
-        argv = ["opencode", "run", "--dir", cwd, "--format", "default"]
+        argv = ["opencode", "run", "--dir", cwd, "--format", "default",
+                "--agent", AGENT]
         if model:
             argv += ["-m", model]
         if effort and effort != "default":
             argv += ["--variant", effort]
-        # No --auto. That is the whole of the read-only enforcement, and the
-        # docstring is explicit that it is weaker than a sandbox.
+        # No --auto either, though it is not what enforces anything. The deny
+        # rules travel in the environment; see read_only_env().
         return argv
 
     def run(self, brief_path, out_path, model, effort, sandbox, cwd,
@@ -75,13 +141,13 @@ class Opencode(Provider):
             try:
                 done = subprocess.run(
                     argv, stdin=stdin, stdout=out, stderr=log,
-                    cwd=cwd, timeout=timeout,
+                    cwd=cwd, timeout=timeout, env=read_only_env(),
                 )
             except subprocess.TimeoutExpired:
                 raise ProviderError(
-                    f"opencode: timed out after {timeout}s. If the brief asked it "
-                    f"to change something, it is waiting on a permission prompt "
-                    f"nobody can answer."
+                    f"opencode: timed out after {timeout}s. A tool that still "
+                    f"asks for permission, such as reading a .env file, waits on "
+                    f"a prompt nobody can answer."
                 ) from None
             finally:
                 if log is not subprocess.DEVNULL:
@@ -91,11 +157,11 @@ class Opencode(Provider):
         return done.returncode
 
     def resume(self, brief_path, out_path, cwd, log_path=None, timeout=600):
-        argv = ["opencode", "run", "--dir", cwd, "--continue"]
+        argv = ["opencode", "run", "--dir", cwd, "--agent", AGENT, "--continue"]
         with open(brief_path, "rb") as stdin, open(out_path, "wb") as out:
             done = subprocess.run(
                 argv, stdin=stdin, stdout=out, stderr=subprocess.DEVNULL,
-                cwd=cwd, timeout=timeout,
+                cwd=cwd, timeout=timeout, env=read_only_env(),
             )
         if done.returncode != 0:
             raise ProviderError(f"opencode: resume exited {done.returncode}")

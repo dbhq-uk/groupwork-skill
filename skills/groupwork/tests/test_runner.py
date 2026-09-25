@@ -142,6 +142,61 @@ def test_copilot_is_not_registered_until_it_has_run_against_the_real_cli(
     assert "copilot" not in capsys.readouterr().out
 
 
+# A fake opencode that answers with the config and argv it was given, so a test
+# can read what the real adapter handed its child.
+FAKE_OPENCODE_ECHO = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "1.0.0"; exit 0; fi
+cat > /dev/null
+printf 'ARGV %s\\n' "$*"
+printf 'CONFIG %s\\n' "$OPENCODE_CONFIG_CONTENT"
+"""
+
+
+def _opencode_child(tmp_path, monkeypatch, pattern="second-opinion"):
+    install_fake_cli(tmp_path / "bin", "opencode", FAKE_OPENCODE_ECHO)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    output = runner.run(pattern, "a brief", provider_name="opencode",
+                        cwd=str(tmp_path))["output"]
+    lines = dict(line.split(" ", 1) for line in output.splitlines() if " " in line)
+    return lines["ARGV"], json.loads(lines["CONFIG"])
+
+
+@pytest.mark.parametrize("pattern", sorted(patterns.PATTERNS))
+def test_the_opencode_child_is_denied_edit_bash_and_the_web(
+        pattern, tmp_path, monkeypatch):
+    """Leaving out --auto enforces nothing: opencode defaults most tools to allow.
+
+    Read-only has to arrive as explicit deny rules, globally and on the agent
+    that runs, because an agent's own rules are applied after the global ones.
+    """
+    monkeypatch.delenv("OPENCODE_CONFIG_CONTENT", raising=False)
+    argv, config = _opencode_child(tmp_path, monkeypatch, pattern)
+    assert "--agent build" in argv
+    assert "--auto" not in argv
+    for rules in (config["permission"], config["agent"]["build"]["permission"]):
+        for tool in ("edit", "webfetch", "websearch", "task", "skill",
+                     "external_directory"):
+            assert rules[tool] == "deny", tool
+        bash = rules["bash"]
+        assert list(bash)[0] == "*" and bash["*"] == "deny"
+        allowed = [p for p, action in bash.items() if action == "allow"]
+        assert allowed and all(p.startswith("git ") for p in allowed)
+
+
+def test_the_opencode_deny_keeps_the_callers_other_config(tmp_path, monkeypatch):
+    """A caller's own inline config survives, apart from the permission rules."""
+    monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", json.dumps({
+        "theme": "mine",
+        "permission": {"edit": "allow"},
+        "agent": {"build": {"permission": {"edit": "allow"}, "temperature": 0.1}},
+    }))
+    _, config = _opencode_child(tmp_path, monkeypatch)
+    assert config["theme"] == "mine"
+    assert config["permission"]["edit"] == "deny"
+    assert config["agent"]["build"]["permission"]["edit"] == "deny"
+    assert config["agent"]["build"]["temperature"] == 0.1
+
+
 def test_unknown_provider_names_the_real_ones():
     with pytest.raises(ValueError, match="Available"):
         providers.get("nonesuch")
