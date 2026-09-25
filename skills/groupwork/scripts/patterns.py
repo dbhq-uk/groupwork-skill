@@ -83,18 +83,32 @@ PATTERNS = {
         "withholds": "nothing - it is working with you, so it gets the full picture",
         "template": "collaborate.md",
     },
-    "debate": {
+    "panel": {
         "purpose": (
-            "Blind proposals, adversarial critique, early stop on convergence, "
-            "then synthesis"
+            "Several answers to one hard question, each reached alone and in "
+            "parallel, on different models where they are available"
         ),
         "model": ADVERSARIAL[0],
         "effort": ADVERSARIAL[1],
         "sandbox": "read-only",
         "repo_access": True,
         "blind": True,
-        "withholds": "each other, in round 0",
-        "template": "debate.md",
+        # Majority voting explains most of what multi-agent debate gains
+        # (arXiv 2508.17536), and different model families are what help
+        # (arXiv 2502.08788). So the members answer alone, in parallel, and
+        # the host reconciles. A critique round is optional and single.
+        "withholds": "our view, and every other member's answer - each answered alone",
+        # What a member of the optional critique round was not told. It was
+        # shown every first answer, so the pattern's own line would overclaim.
+        "withholds_in_critique": (
+            "our view, and which member wrote which answer - it was shown "
+            "every first answer, unlabelled"
+        ),
+        # The purpose describes the pattern, not a question anyone could
+        # answer, so a panel with no --question asks this instead.
+        "default_question": "What would you do here, and why?",
+        "template": "panel.md",
+        "critique_template": "panel-critique.md",
     },
 }
 
@@ -154,13 +168,16 @@ def get(name):
         ) from None
 
 
-def withheld(name, repo_access):
-    """What a run of this pattern actually withheld, given the access it had.
+def withheld(name, repo_access, critique=False):
+    """What a run of this pattern actually withheld, given what it was shown.
 
     A pattern that withholds the repository by default and was given it anyway
-    has its own wording, so a citation never claims more than the run did.
+    has its own wording, and so does a panel critique that was shown the other
+    answers, so a citation never claims more than the run did.
     """
     spec = get(name)
+    if critique:
+        return spec["withholds_in_critique"]
     if repo_access and not spec["repo_access"]:
         return spec["withholds_with_repo"]
     return spec["withholds"]

@@ -37,7 +37,7 @@ enforced in code rather than requested in prose.
 | `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
 | `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
 | `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
-| `debate` | A hard call where the trade-off is the answer | The other side, in round 0 |
+| `panel` | A hard call where the trade-off is the answer | Your view, and each other's answers |
 
 ## Install
 
@@ -124,8 +124,8 @@ python3 scripts/groupwork.py run second-opinion \
   --subject "the recommendation in docs/research/foo.md" \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 
-# blind proposals, then adversarial rounds, fresh session each time
-python3 scripts/groupwork.py debate --subject "queue or cron" --rounds 2 \
+# the same question to two or more models at once, each answering alone
+python3 scripts/groupwork.py panel --background --subject "queue or cron" \
   --no-prior-view
 
 python3 scripts/groupwork.py history
@@ -167,6 +167,12 @@ edits, bash apart from read-only `git` subcommands, web fetch and search,
 sub-agents, skills and directories outside the working one. That is a
 tool-permission deny that opencode enforces itself, not a sandbox. The citation
 names the provider, so a reader can weigh the difference.
+
+A `panel` runs one member per ready provider, or two on the only one that is
+ready. Answers from different model families are worth more than two from one,
+so name the members, for example `--members codex,opencode:google/gemini-3-pro`,
+when opencode has another family signed in. The result says when every answer
+came from one family.
 
 `claude -p` is deliberately absent. Run from inside Claude Code the counterpart
 would be the same model family as the host unless a different model is pinned,

@@ -22,6 +22,7 @@ Three files beside the run's own, all in runs/:
   <id>.failed      the reason, written when the run fails.
 """
 
+import contextlib
 import fcntl
 import os
 import subprocess
@@ -63,7 +64,7 @@ def launch(script, argv, run_id):
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with open(paths["log"], "wb") as log:
-            subprocess.Popen(
+            return subprocess.Popen(
                 [sys.executable, str(script), *argv, "--run-id", run_id],
                 stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 cwd=os.getcwd(), start_new_session=True, pass_fds=(fd,),
@@ -71,6 +72,23 @@ def launch(script, argv, run_id):
     finally:
         # The child has its own copy of the descriptor, and a flock lock lasts
         # until every copy is closed, so closing ours does not release it.
+        os.close(fd)
+
+
+@contextlib.contextmanager
+def hold(run_id):
+    """Hold a run's lock for the life of this block, in this process.
+
+    For work done in the foreground, so `status` from another shell says
+    running rather than stopped. A process started by launch() already holds
+    it and must not take it again.
+    """
+    runner._state_dir()
+    fd = os.open(_paths(run_id)["lock"], os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+    finally:
         os.close(fd)
 
 
@@ -82,6 +100,11 @@ def mark_failed(run_id, reason):
         _paths(run_id)["failed"].write_text(reason.strip() + "\n", encoding="utf-8")
     except OSError:
         pass
+
+
+def running(run_id):
+    """Is the process doing this run still alive?"""
+    return runner.valid_run_id(run_id) and _running(_paths(run_id)["lock"])
 
 
 def _running(lock_path):

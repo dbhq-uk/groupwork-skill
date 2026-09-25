@@ -5,8 +5,9 @@ description: >-
   back a result you can cite. Five named patterns: red-team attacks an idea
   without being shown your evidence, second-opinion judges your material
   without being shown your conclusion, verify rules on finished work against
-  stated constraints, collaborate is a peer conversation, and debate runs blind
-  proposals into adversarial rounds. Runs on Codex or opencode behind one
+  stated constraints, collaborate is a peer conversation, and panel puts one
+  hard question to several models at once, each answering alone. Runs on Codex
+  or opencode behind one
   provider layer. Use when the user says "groupwork", "second opinion",
   "red team", "adversarial review", "cross-check this", "what does codex think",
   "what does claude think", or wants independent eyes before something ships.
@@ -31,7 +32,7 @@ therefore refuse to carry your view at all, and the refusal is enforced in code.
 | `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
 | `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
 | `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
-| `debate` | A hard call where the trade-off is the answer | The other side, in round 0 |
+| `panel` | A hard call where the trade-off is the answer | Your view, and each other's answers |
 
 Two that look alike and are not: `red-team` is handed a claim and told to break
 it, deliberately starved of the material so its attack cannot inherit your blind
@@ -115,21 +116,38 @@ First match wins:
 3. The branch's work: `git log --oneline main..HEAD` plus `git status --short`.
 4. Nothing found - ask, and stop.
 
-## Debate
+## Panel
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py debate \
-  --subject "queue or cron for the nightly reconcile" --rounds 2 \
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py panel --background \
+  --subject "queue or cron for the nightly reconcile" \
   --no-prior-view
 ```
 
-Round 0 is blind. Each later round shows the previous position and asks for an
-attack on its reasoning. Every round is a **fresh session** - a reviewer that
-already argued a position defends it rather than re-examining it, and a resumed
-session produces entrenchment while looking like convergence.
+A panel puts the same brief to at least two members at once: one per ready
+provider, or two on the only one that is ready. Each answers alone, in its own
+session, without sight of the others. Every answer is kept, and each member is
+an ordinary run with its own citation. A panel of two is two runs at `high`
+effort, so it costs twice what one run does.
 
-The output is not a winner. It is: where the rounds agreed, which you can rely
-on, and where they diverged, which is the real trade-off and yours to settle.
+Answers from different model families are worth more than two from one. Name
+the members as `provider` or `provider:model` when opencode has another family
+signed in: `--members codex,opencode:google/gemini-3-pro`.
+
+`status` and `result` take the panel id as they take a run id. `result` prints
+every answer, labelled A, B and so on, then a citation for each.
+
+Then reconcile them yourself, and tell the user: what every answer agrees on,
+which can be relied on; where they differ, which is the real trade-off and the
+user's to settle; and what only one of them raised, which needs checking before
+you believe it. If every answer came from one model family, `result` says so,
+and agreement then counts for less.
+
+`--critique` adds one more round. Each member, in a fresh session, is shown
+every first answer, unlabelled and in no particular order, and asked to attack
+the reasoning. That doubles the cost again. Most of the gain comes from
+comparing answers reached alone, so use it only when the first answers
+disagree and you cannot tell why.
 
 ## Reading the result
 

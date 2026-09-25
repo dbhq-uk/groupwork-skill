@@ -112,11 +112,12 @@ def _isolated_cwd():
 
 def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         repo_access=None, model=None, effort=None, allow_write=False,
-        subject="", timeout=None, run_id=None):
+        subject="", timeout=None, run_id=None, panel_id=None):
     """Run one brief. Returns a record dict; raises RunFailed on anything else.
 
     `run_id` is given by a background launch, which has to print the id before
-    the run starts. Otherwise a new one is made here.
+    the run starts. Otherwise a new one is made here. `panel_id` names the
+    panel a member run belongs to, so its answers can be found together.
     """
     if run_id is not None and not valid_run_id(run_id):
         raise RunFailed(f"'{run_id}' is not a run id")
@@ -180,6 +181,7 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     finally:
         ended = time.time()
 
+    critique = bool(getattr(brief_text, "answers_shown", 0))
     text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
     if not text.strip():
         raise RunFailed(
@@ -204,7 +206,7 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         "ended_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ended)),
         "duration_s": round(ended - started, 1),
         "subject": subject or "(unstated)",
-        "withheld": patterns.withheld(pattern_name, repo_access),
+        "withheld": patterns.withheld(pattern_name, repo_access, critique=critique),
         # Set by brief.build(), which is the only thing that ran the check. A
         # brief that did not come from there is a plain string and reads as
         # not-run, which is the truth about it.
@@ -214,6 +216,10 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         "brief_sha256": brief_sha256,
         "output_path": str(out_path),
         "output": text,
+        "panel_id": panel_id,
+        # 1 when the brief carried a panel's first answers. Read off the brief,
+        # which only brief.build() can mark, not passed in by the caller.
+        "panel_round": (1 if critique else 0) if panel_id else None,
     }
 
 

@@ -1,6 +1,6 @@
 {
   "name": "groupwork",
-  "description": "Put a second agent on the work - as an adversary or as a partner - and get back a result you can cite. Five named patterns: red-team attacks an idea without being shown your evidence, second-opinion judges your material without being shown your conclusion, verify rules on finished work against stated constraints, collaborate is a peer conversation, and debate runs blind proposals into adversarial rounds. Runs on Codex or opencode behind one provider layer, and records what each run was told and what it was not.",
+  "description": "Put a second agent on the work - as an adversary or as a partner - and get back a result you can cite. Five named patterns: red-team attacks an idea without being shown your evidence, second-opinion judges your material without being shown your conclusion, verify rules on finished work against stated constraints, collaborate is a peer conversation, and panel puts one hard question to several models at once, each answering alone. Runs on Codex or opencode behind one provider layer, and records what each run was told and what it was not.",
   "author": {
     "name": "DBHQ",
     "email": "dan@dbhq.uk"

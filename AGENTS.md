@@ -25,7 +25,7 @@ else easier.
 ### 1. A blind pattern's brief never carries our conclusion
 
 `brief.build()` raises if `our_view` is passed to `red-team`, `second-opinion`,
-`verify` or `debate`. It also raises if any run of six words from
+`verify` or `panel`. It also raises if any run of six words from
 `assert_withholds` is found in what the caller supplied, after lower-casing and
 stripping punctuation and markdown. That catches the honest mistake of pasting a
 conclusion into `--context`, including with a comma added or a word changed.
@@ -58,7 +58,12 @@ agent, fails on auth or the read-only sandbox, and returns an apology where the
 review should be. You pay for the run and get a polite note.
 
 `patterns.TRIGGER_PHRASES` is the list; `brief.build()` refuses any brief
-containing one. A test asserts the list covers every phrase quoted in `SKILL.md`
+containing one.
+
+A panel's critique round is the one place a model's own words go into a brief.
+They go in after the check, never before it. An answer that happens to use a
+trigger phrase must not refuse a round when the first round has already been
+paid for, and the caller cannot reword a model's answer. A test asserts the list covers every phrase quoted in `SKILL.md`
 frontmatter, so adding a trigger there without adding it here fails CI.
 
 ### 4. No write sandbox without a decision in that run
