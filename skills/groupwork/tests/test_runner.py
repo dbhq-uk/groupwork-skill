@@ -6,6 +6,7 @@ installed, no credentials and no network.
 
 import hashlib
 import json
+import os
 import pathlib
 
 import pytest
@@ -16,6 +17,7 @@ import patterns
 import provenance
 import providers
 import runner
+from conftest import install_fake_cli
 from providers.base import Provider
 
 
@@ -111,6 +113,33 @@ def test_a_provider_that_cannot_reach_the_sandbox_says_so():
     """Rule 4 from the other side: asking for write on a provider without it fails."""
     with pytest.raises(runner.RunFailed, match="does not offer a write sandbox"):
         go(allow_write=True)
+
+
+@pytest.mark.parametrize("name", sorted(providers.REGISTRY))
+def test_every_registered_provider_runs_every_pattern_against_a_fake_cli(
+        name, tmp_path, monkeypatch):
+    """A registered provider has to be able to run, not merely import.
+
+    Drives the real adapter, with its real capabilities, against a fake binary
+    of the same name on PATH. copilot was registered while every run through it
+    failed on its own effort list, which a test like this catches at once.
+    """
+    install_fake_cli(tmp_path / "bin", name)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    for pattern in patterns.PATTERNS:
+        result = runner.run(pattern, "a brief", provider_name=name, cwd=str(tmp_path))
+        assert "a canned finding" in result["output"], f"{name} {pattern}"
+
+
+def test_copilot_is_not_registered_until_it_has_run_against_the_real_cli(
+        capsys, tmp_path, monkeypatch):
+    """Its adapter was written from documentation and could not complete a run."""
+    assert "copilot" not in providers.REGISTRY
+    for name in ("codex", "opencode", "copilot"):
+        install_fake_cli(tmp_path / "bin", name)
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    groupwork.main(["providers"])
+    assert "copilot" not in capsys.readouterr().out
 
 
 def test_unknown_provider_names_the_real_ones():
@@ -277,10 +306,9 @@ def test_a_verified_adapter_adds_no_caveat():
     assert "experimental" not in provenance.citation(go())
 
 
-def test_copilot_is_the_experimental_one_at_this_version():
-    assert providers.get("copilot").experimental is True
-    assert providers.get("codex").experimental is False
-    assert providers.get("opencode").experimental is False
+def test_no_registered_provider_is_experimental_at_this_version():
+    for name in providers.REGISTRY:
+        assert providers.get(name).experimental is False, name
 
 
 def test_the_pairwork_state_directory_is_migrated_once(tmp_path, monkeypatch):

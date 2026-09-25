@@ -12,7 +12,7 @@ credited in the fix unless you would rather not be.
 - **Briefs go to a third-party AI provider.** Whatever you put in `--subject`
   and `--context` is sent to whichever CLI you selected, and from there to that
   vendor. Treat a brief the way you would treat a prompt: do not put anything in
-  it you would not send to OpenAI, GitHub or whoever backs your opencode config.
+  it you would not send to OpenAI or whoever backs your opencode config.
 - **Run records are kept locally**, in `~/.dbhq/groupwork/` at mode 700: the
   brief each run was sent, its raw output, and one JSONL line per run. Nothing is
   uploaded anywhere by groupwork itself.
@@ -31,6 +31,5 @@ explicit decision per run.
   a write attempt waits on a permission prompt nobody can answer, and is killed
   by the timeout. That is weaker, it is recorded, and the citation names the
   provider so a reader can weigh it.
-- **copilot** is given narrow tool permissions by name rather than `--allow-all`.
 
 If you need a hard boundary, use codex.

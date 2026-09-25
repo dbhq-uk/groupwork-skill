@@ -21,8 +21,8 @@ a result you can cite.
 
 ## What makes it different
 
-Five named patterns for using a second AI agent, running on Codex, opencode or
-GitHub Copilot behind one provider layer.
+Five named patterns for using a second AI agent, running on Codex or opencode
+behind one provider layer.
 
 The patterns are the product. The reason this is not a wrapper around
 `codex exec` is the **withholding rule**: a second opinion that has already been
@@ -137,15 +137,11 @@ before paying for it.
 |---|---|
 | `codex` | The default. Real kernel-enforced `--sandbox read-only`. Verified |
 | `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Verified |
-| `copilot` | No separate login where `gh` already works. **Experimental: the adapter has never been run against the real CLI** |
 
-**The copilot adapter has never been run against the real CLI.** It is written
-from Copilot's own documentation and issue tracker, so the two bugs it codes
-around have not been seen to fire and the flag shapes are documented rather than
-observed. `groupwork providers` labels it, and any citation from a run through it
-carries the caveat - because a reader of the finding is the person who needs to
-know, and a README is not where they will look. Use `codex` or `opencode` where
-the answer matters, and please report what breaks.
+**GitHub Copilot is not a provider yet.** An adapter for it is in the source,
+written from Copilot's documentation, but it has never been run against the real
+CLI and could not complete a run. It is not registered, so `groupwork providers`
+does not list it. It comes back once one real run has shown it works.
 
 One honest difference, stated rather than papered over: Codex takes
 `--sandbox read-only` and the kernel enforces it. opencode has no sandbox -

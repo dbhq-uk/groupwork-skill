@@ -1,4 +1,22 @@
-"""GitHub Copilot CLI.
+"""GitHub Copilot CLI. NOT REGISTERED - see below.
+
+This adapter is kept out of providers.REGISTRY, so `groupwork providers` does
+not list it and `--provider copilot` is refused. It was written from Copilot's
+documentation and never run against the real CLI, and it could not complete a
+run: `efforts = ["default"]` is not a level `patterns.resolve_effort` knows, so
+every pattern raised before anything was spawned.
+
+It comes back only after one real run, with:
+
+  - `--effort` mapped to the pattern's effort (Copilot CLI 1.0.11 or newer
+    added it, so the "no reasoning-effort dial" note below is out of date);
+  - a documented way to pass the prompt, since `-p -` is not in GitHub's
+    programmatic reference;
+  - a probe that accepts an interactive `copilot login`, not only a token;
+  - only the sandboxes the argv actually enforces. `workspace-write` is listed
+    below but grants nothing extra.
+
+The notes below describe the adapter as it was written.
 
 Two of its documented bugs shape this adapter:
 

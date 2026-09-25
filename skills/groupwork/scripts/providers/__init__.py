@@ -1,7 +1,7 @@
 """Provider registry.
 
-To add a fourth provider, write a module here that subclasses Provider and add
-it below. Nothing else in groupwork changes: the patterns, the briefs, the
+To add a provider, write a module here that subclasses Provider and add it
+below. Nothing else in groupwork changes: the patterns, the briefs, the
 withholding rules and the provenance record are all provider-neutral, which is
 the point of the layer.
 
@@ -13,13 +13,15 @@ premise. It becomes worth writing the day somebody runs groupwork from Codex.
 
 from .base import Provider, ProviderError  # noqa: F401  (re-exported)
 from .codex import Codex
-from .copilot import Copilot
 from .opencode import Opencode
 
+#: Only providers that can complete a run. copilot.py is deliberately absent:
+#: its adapter was written from documentation, has never run against the real
+#: CLI, and failed every run on its own effort list. Its module docstring says
+#: what it needs before it comes back.
 REGISTRY = {
     Codex.name: Codex,
     Opencode.name: Opencode,
-    Copilot.name: Copilot,
 }
 
 DEFAULT = Codex.name

@@ -48,6 +48,6 @@ echo "Next: check which counterparts are ready:"
 echo "  python3 $SKILLS_ROOT/groupwork/scripts/groupwork.py providers"
 echo
 echo "groupwork stores no credentials - each provider CLI authenticates"
-echo "itself. You need at least one of codex, opencode or copilot"
+echo "itself. You need at least one of codex or opencode"
 echo "installed AND logged in."
 echo
