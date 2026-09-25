@@ -77,9 +77,11 @@ whole skill directory is symlinked untouched, while Codex does not, so its
 Python 3.9 or newer, standard library only. At least one provider CLI installed
 **and authenticated** - that is the real barrier to entry, not the install.
 
-State lives in `~/.dbhq/groupwork/` (mode 700): the brief and the raw output of
-each run, and one JSONL line each in `runs.jsonl`. No credentials are stored;
-every provider authenticates itself.
+State lives in `~/.dbhq/groupwork/` (mode 700): the brief, the raw output and
+the log of each run, and `runs.jsonl`, which gets a line when a run starts and
+another when it ends, whether it worked, failed, timed out or was stopped. The
+file is only ever appended to. No credentials are stored; every provider
+authenticates itself.
 
 ## Why the withholding matters
 

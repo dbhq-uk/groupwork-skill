@@ -484,8 +484,8 @@ def test_every_ledger_field_is_present_and_populated():
     entry = provenance.record(go(subject="the diff on this branch"))
     for field in provenance.FIELDS:
         assert field in entry, f"ledger is missing {field}"
-        if field in provenance.PANEL_FIELDS:
-            assert entry[field] is None, f"{field} set on a run outside a panel"
+        if field in provenance.OPTIONAL_FIELDS:
+            assert entry[field] is None, f"{field} set on a clean run outside a panel"
             continue
         assert entry[field] not in (None, ""), f"ledger field {field} is empty"
 
@@ -644,3 +644,115 @@ def test_the_ledger_survives_a_half_written_line(tmp_path):
 
 def test_history_is_empty_before_anything_runs():
     assert provenance.read_ledger() == []
+
+
+# --- Every run is in the ledger, not only the ones that worked ---------------
+
+FAKE_CODEX_EXIT_1 = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+cat > /dev/null
+echo "the model refused" >&2
+exit 1
+"""
+
+
+def _failed_codex_run(tmp_path, monkeypatch):
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CODEX_EXIT_1)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    with pytest.raises(runner.RunFailed, match="exited 1"):
+        runner.run("verify", "a brief", provider_name="codex",
+                   cwd=str(tmp_path), subject="the diff")
+    return provenance.read_ledger()[-1]["id"]
+
+
+def test_a_failed_run_has_a_ledger_line_saying_so(tmp_path, monkeypatch):
+    """It used to leave a log in runs/ and nothing in the ledger."""
+    run_id = _failed_codex_run(tmp_path, monkeypatch)
+    lines = [line for line in provenance.read_ledger() if line["id"] == run_id]
+    assert [line["status"] for line in lines] == ["started", "failed"]
+    row = provenance.find(run_id)
+    assert row["status"] == "failed"
+    assert "exited 1" in row["error"]
+    assert row["subject"] == "the diff"
+    assert row["duration_s"] is not None
+
+
+def test_history_lists_a_failed_run_marked_as_failed(tmp_path, monkeypatch, capsys):
+    go(subject="a run that worked")
+    run_id = _failed_codex_run(tmp_path, monkeypatch)
+    assert groupwork.main(["history"]) == 0
+    out = capsys.readouterr().out
+    rows = [line for line in out.splitlines() if line.startswith("20")]
+    assert len(rows) == 2, "one row per run, not one per ledger line"
+    failed_line = next(line for line in out.splitlines() if line.startswith(run_id))
+    assert "[failed]" in failed_line
+    ok_line = next(line for line in out.splitlines()
+                   if line.startswith("20") and not line.startswith(run_id))
+    assert "[" not in ok_line
+
+
+def test_show_works_for_a_run_with_a_log_but_no_output(tmp_path, monkeypatch, capsys):
+    run_id = _failed_codex_run(tmp_path, monkeypatch)
+    assert groupwork.main(["show", run_id]) == 1
+    out = capsys.readouterr().out
+    assert f"Run {run_id}: failed." in out
+    assert "exited 1" in out
+    assert f"{run_id}.log" in out
+    assert "**Verification pass:**" not in out, "a failed run must not be cited"
+
+
+def test_a_timed_out_run_is_recorded_as_timed_out(tmp_path, monkeypatch):
+    from providers import base
+    monkeypatch.setattr(base, "GRACE_S", 0.5)
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CODEX_SLOW_WITH_BWRAP_NOISE)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    with pytest.raises(runner.RunFailed, match="timed out"):
+        runner.run("verify", "a brief", provider_name="codex",
+                   cwd=str(tmp_path), timeout=1)
+    (row,) = provenance.runs()
+    assert row["status"] == "timed-out"
+
+
+def test_an_empty_answer_is_recorded_as_failed():
+    Stub.payload = ""
+    with pytest.raises(runner.RunFailed):
+        go()
+    (row,) = provenance.runs()
+    assert row["status"] == "failed"
+    assert "returned nothing" in row["error"]
+
+
+def test_a_killed_run_reads_as_stopped(capsys):
+    """Killed outright, only the "started" line is left, and no lock is held."""
+    go()
+    started = dict(provenance.read_ledger()[0])
+    started["id"] = "20260101T000000Z-abcdef"
+    with provenance.LEDGER.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(started) + "\n")
+    assert groupwork.main(["history"]) == 0
+    assert "[stopped]" in capsys.readouterr().out
+    assert groupwork.main(["status", started["id"]]) == 0
+    assert "stopped before it finished" in capsys.readouterr().out
+
+
+def test_a_run_from_before_failures_were_recorded_can_still_be_shown(capsys):
+    """A log in runs/ and no ledger line at all is what older failures left."""
+    runs = runner._state_dir()
+    run_id = "20260920T112902Z-333cbb"
+    (runs / f"{run_id}.log").write_text("codex: exited 1\n", encoding="utf-8")
+    (runs / f"{run_id}.brief.md").write_text("a brief", encoding="utf-8")
+    assert groupwork.main(["show", run_id]) == 1
+    out = capsys.readouterr().out
+    assert "no result recorded" in out
+    assert f"{run_id}.log" in out
+
+
+def test_a_ledger_line_from_before_status_existed_reads_as_done(capsys):
+    """Older lines were only ever written for runs that worked."""
+    row = {k: v for k, v in provenance.record(go()).items()
+           if k not in ("status", "error")}
+    provenance.LEDGER.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    assert provenance.status(provenance.find(row["id"])) == "done"
+    assert groupwork.main(["history"]) == 0
+    assert "[" not in capsys.readouterr().out
+    assert groupwork.main(["show", row["id"]]) == 0
