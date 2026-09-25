@@ -157,6 +157,12 @@ billing, after groupwork has reported it dead.
 | `codex` | The default. Real kernel-enforced `--sandbox read-only`. Verified |
 | `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Verified |
 
+`groupwork providers` checks that each CLI is signed in, not only installed, with
+`codex login status` and `opencode auth list`. opencode is signed in per model
+provider, so it runs a pattern's model only when it can reach it. Otherwise it
+uses the default model in opencode's own configuration, and with no default the
+run asks for `--model`.
+
 **GitHub Copilot is not a provider yet.** An adapter for it is in the source,
 written from Copilot's documentation, but it has never been run against the real
 CLI and could not complete a run. It is not registered, so `groupwork providers`

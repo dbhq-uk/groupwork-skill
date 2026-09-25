@@ -85,7 +85,11 @@ Implement three things:
 - `capabilities()` - what it can actually do. Be honest here. `opencode.py` is
   the worked example: it declares only `read-only` because it has no sandbox to
   enforce anything stronger, and its docstring says so plainly rather than
-  claiming the guarantee Codex gives.
+  claiming the guarantee Codex gives. It is called after `probe()`, so it can
+  list only the models this machine can reach and name the CLI's own
+  `default_model`. The runner uses the pattern's model if it is listed, then
+  that default, and otherwise refuses and asks for `--model`. It never picks a
+  model nobody chose.
 - `run()` - brief in from a file on stdin, answer out to a file, raise on
   failure.
 

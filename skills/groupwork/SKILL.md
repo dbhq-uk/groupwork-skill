@@ -51,7 +51,9 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py providers
 ```
 
 Installed is not the same as authenticated, and every one of these CLIs installs
-in a second and then refuses to run. The command distinguishes the two.
+in a second and then refuses to run. The command distinguishes the two: a CLI
+that is installed but logged out is listed under "Not ready" with the reason. It
+asks `codex login status` and `opencode auth list`, which cost nothing.
 
 ## Run one
 
@@ -205,6 +207,12 @@ where its log is, and no citation, because there is no finding to cite.
 ## Providers
 
 `codex` by default. `opencode` carries other model families behind one adapter.
+
+opencode is signed in per model provider, so it runs a pattern's model only if
+it can reach it: `openai/gpt-6-astra` needs an OpenAI credential in opencode.
+Without one it uses the default model set in opencode's own configuration, and
+the citation names that model. With neither, the run is refused before it
+starts and asks for `--model provider/model`.
 
 Two differences worth stating rather than papering over:
 
