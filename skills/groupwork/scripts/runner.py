@@ -127,9 +127,10 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         raise RunFailed(f"'{run_id}' is not a run id")
     spec = patterns.get(pattern_name)
     provider = providers.get(provider_name)
-    caps = provider.capabilities()
-
     version = provider.probe()  # raises ProviderError with the reason
+    # After probe(), because what a provider can reach may depend on what it
+    # is signed in to, and probe() is what finds that out.
+    caps = provider.capabilities()
 
     sandbox = spec["sandbox"]
     if allow_write:
@@ -148,7 +149,9 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
 
     wanted_effort = effort or spec["effort"]
     used_effort, downgraded = patterns.resolve_effort(wanted_effort, caps["efforts"])
-    used_model = model or _pick_model(spec["model"], caps["models"])
+    used_model = model or _pick_model(
+        provider.name, spec["model"], caps["models"], caps.get("default_model")
+    )
 
     if repo_access is None:
         repo_access = spec["repo_access"]
@@ -262,16 +265,23 @@ def _finish(provenance, record, started, status, error=None):
     provenance.record(record)
 
 
-def _pick_model(wanted, supported):
-    """Use the pattern's model if the provider has it, else the provider's first.
+def _pick_model(provider, wanted, supported, default=None):
+    """Use the pattern's model if the provider has it, else the provider's default.
 
     No cleverness here on purpose. A provider that does not carry `gpt-6-astra`
     is not going to have a near-equivalent that groupwork can identify reliably,
-    and guessing one would put a model name in the record that nobody chose.
+    and guessing one would put a model name in the record that nobody chose. The
+    provider's own default was chosen by the user, in its configuration. Without
+    one the run is refused and the user names a model.
     """
-    if not supported or wanted in supported:
+    if wanted in supported:
         return wanted
     for name in supported:
-        if name.endswith("/" + wanted) or name == wanted:
+        if name.endswith("/" + wanted):
             return name
-    return supported[0]
+    if default:
+        return default
+    raise RunFailed(
+        f"{provider} cannot reach {wanted} here and has no default model "
+        f"configured. Pass --model with a model it can reach."
+    )

@@ -163,9 +163,16 @@ class Provider:
         raise NotImplementedError
 
     def capabilities(self):
+        """What it can do. Called after probe(), so it may use what that found.
+
+        `default_model` is the model the CLI uses when none is named, where the
+        provider can say which. The runner falls back to it, and to nothing
+        else, when the pattern's model is not in `models`.
+        """
         return {
             "provider": self.name,
             "models": list(self.models),
+            "default_model": None,
             "efforts": list(self.efforts),
             "sandboxes": list(self.sandboxes),
             "can_withhold_repo": self.can_withhold_repo,
@@ -186,13 +193,24 @@ class Provider:
             )
         return found
 
-    def _version(self, argv, timeout=20):
+    def _call(self, argv, timeout=30):
+        """Run a quick, free CLI command such as a version or login check.
+
+        stdin is closed, so a CLI that would read it gets EOF rather than
+        waiting on a terminal nobody is at. Returns the CompletedProcess.
+        """
         try:
-            done = subprocess.run(
-                argv, capture_output=True, text=True, timeout=timeout
+            return subprocess.run(
+                argv, capture_output=True, text=True, timeout=timeout,
+                stdin=subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired:
-            raise ProviderError(f"{self.name}: '{argv[0]} --version' hung") from None
+            raise ProviderError(
+                f"{self.name}: '{' '.join(argv)}' hung for {timeout}s"
+            ) from None
+
+    def _version(self, argv, timeout=20):
+        done = self._call(argv, timeout=timeout)
         if done.returncode != 0:
             raise ProviderError(
                 f"{self.name}: '{' '.join(argv)}' exited {done.returncode}: "

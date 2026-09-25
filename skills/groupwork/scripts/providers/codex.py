@@ -30,9 +30,15 @@ fails before it starts. That is reported as such, with `--repo-access` as the
 explicit alternative, rather than quietly running with the repository readable.
 """
 
+import os
 import subprocess
 
 from .base import Provider, ProviderError, RunTimedOut, spawn
+
+#: Environment variables `codex exec` takes a credential from. `codex login
+#: status` does not look at them, so a key given this way would otherwise read
+#: as logged out.
+AUTH_ENV = ("CODEX_API_KEY", "CODEX_ACCESS_TOKEN")
 
 #: The permission profile for a run that must not see the repository. Anything
 #: not listed cannot be read. `:root` is deliberately not set to deny: deny
@@ -78,8 +84,26 @@ class Codex(Provider):
         return "Install the Codex CLI and run 'codex login'."
 
     def probe(self):
+        """Installed, and logged in. `--version` alone answers only the first.
+
+        `codex login status` reads the stored login and exits non-zero without
+        one. It makes no model call and costs nothing.
+        """
         self._which("codex")
-        return self._version(["codex", "--version"])
+        version = self._version(["codex", "--version"])
+        if any(os.environ.get(name) for name in AUTH_ENV):
+            return version
+        done = self._call(["codex", "login", "status"])
+        if done.returncode != 0:
+            said = [line.strip() for line in
+                    (done.stderr + "\n" + done.stdout).splitlines() if line.strip()]
+            reason = said[-1][:200] if said else f"exited {done.returncode}"
+            raise ProviderError(
+                f"codex: installed ({version}) but not logged in: "
+                f"'codex login status' says \"{reason}\". Run 'codex login', "
+                f"or set CODEX_API_KEY."
+            )
+        return version
 
     def argv(self, brief_path, out_path, model, effort, sandbox, cwd, repo_access=True):
         """The command, built but not run. Separated so tests can read it."""

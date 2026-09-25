@@ -225,6 +225,101 @@ def test_the_opencode_deny_keeps_the_callers_other_config(tmp_path, monkeypatch)
     assert config["agent"]["build"]["temperature"] == 0.1
 
 
+# --- Signed in, not just installed -------------------------------------------
+
+@pytest.mark.parametrize("name", sorted(providers.REGISTRY))
+def test_a_signed_out_cli_is_listed_as_not_ready(name, capsys, tmp_path, monkeypatch):
+    """Every one of these CLIs installs in a second and then refuses to run."""
+    monkeypatch.delitem(providers.REGISTRY, "stub")
+    for each in providers.REGISTRY:
+        install_fake_cli(tmp_path / "bin", each)
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    monkeypatch.setenv("GW_FAKE_SIGNED_OUT", "1")
+    for var in ("CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    assert groupwork.main(["providers"]) == 1
+    out = capsys.readouterr().out
+    assert "Ready:" not in out
+    ready, _, not_ready = out.partition("Not ready:")
+    line = next(line for line in not_ready.splitlines() if line.strip().startswith(name))
+    assert "not logged in" in line or "not signed in" in line, line
+    with pytest.raises(providers.ProviderError, match="login"):
+        providers.get(name).probe()
+
+
+def test_a_codex_key_in_the_environment_counts_as_signed_in(tmp_path, monkeypatch):
+    """`codex exec` takes CODEX_API_KEY, and `codex login status` does not see it."""
+    install_fake_cli(tmp_path / "bin", "codex")
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    monkeypatch.setenv("GW_FAKE_SIGNED_OUT", "1")
+    monkeypatch.setenv("CODEX_API_KEY", "sk-not-a-real-key")
+    assert providers.get("codex").probe() == "fake-cli 1.0"
+
+
+def test_an_opencode_auth_list_it_cannot_read_is_not_a_lockout():
+    from providers import opencode
+    assert opencode.signed_in("\x1b[90m└  0 credentials\n") is False
+    assert opencode.signed_in(
+        "└  0 credentials\n●  OpenAI OPENAI_API_KEY\n└  1 environment variable\n"
+    ) is True
+    assert opencode.signed_in("something opencode has never printed") is None
+
+
+def test_opencode_signed_in_to_a_custom_provider_only_is_ready(tmp_path, monkeypatch):
+    """A local model set up in opencode.json needs no credential."""
+    install_fake_cli(tmp_path / "bin", "opencode")
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    monkeypatch.setenv("GW_FAKE_SIGNED_OUT", "1")
+    monkeypatch.setenv("GW_FAKE_CONFIG", json.dumps(
+        {"provider": {"ollama": {}}, "model": "ollama/qwen3"}))
+    assert providers.get("opencode").probe()
+
+
+def _opencode_model(tmp_path, monkeypatch, models, config, **kwargs):
+    install_fake_cli(tmp_path / "bin", "opencode", FAKE_OPENCODE_ECHO)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    monkeypatch.setenv("GW_FAKE_MODELS", models)
+    monkeypatch.setenv("GW_FAKE_CONFIG", json.dumps(config))
+    result = runner.run("red-team", "a brief", provider_name="opencode",
+                        cwd=str(tmp_path), **kwargs)
+    argv = next(line for line in result["output"].splitlines()
+                if line.startswith("ARGV "))
+    return argv, result
+
+
+def test_opencode_asks_for_the_patterns_model_when_it_can_reach_it(tmp_path, monkeypatch):
+    argv, result = _opencode_model(
+        tmp_path, monkeypatch, "openai/gpt-6-astra\nanthropic/claude-opus-5",
+        {"model": "anthropic/claude-opus-5"})
+    assert "-m openai/gpt-6-astra" in argv
+    assert result["model"] == "openai/gpt-6-astra"
+
+
+def test_opencode_without_openai_uses_its_own_default_not_an_openai_model(
+        tmp_path, monkeypatch):
+    argv, result = _opencode_model(
+        tmp_path, monkeypatch, "anthropic/claude-opus-5\nanthropic/claude-sonnet-5",
+        {"model": "anthropic/claude-sonnet-5"})
+    assert "openai/" not in argv
+    assert "-m anthropic/claude-sonnet-5" in argv
+    assert result["model"] == "anthropic/claude-sonnet-5"
+    assert provenance.runs()[-1]["model"] == "anthropic/claude-sonnet-5"
+
+
+def test_opencode_without_openai_or_a_default_asks_for_a_model(tmp_path, monkeypatch):
+    """Rather than run a model nobody chose, or one it has no credential for."""
+    with pytest.raises(runner.RunFailed, match="--model"):
+        _opencode_model(tmp_path, monkeypatch, "google/gemini-3-pro", {})
+    assert provenance.runs() == [], "a refused run must not reach the ledger"
+
+
+def test_a_model_named_with_model_is_used_as_given(tmp_path, monkeypatch):
+    argv, result = _opencode_model(
+        tmp_path, monkeypatch, "google/gemini-3-pro", {},
+        model="google/gemini-3-pro")
+    assert "-m google/gemini-3-pro" in argv
+
+
 def test_unknown_provider_names_the_real_ones():
     with pytest.raises(ValueError, match="Available"):
         providers.get("nonesuch")
