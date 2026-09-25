@@ -77,9 +77,9 @@ whole skill directory is symlinked untouched, while Codex does not, so its
 Python 3.9 or newer, standard library only. At least one provider CLI installed
 **and authenticated** - that is the real barrier to entry, not the install.
 
-State lives in `~/.dbhq/groupwork/` (mode 700): raw output per run, and one JSONL
-line each in `runs.jsonl`. No credentials are stored; every provider
-authenticates itself.
+State lives in `~/.dbhq/groupwork/` (mode 700): the brief and the raw output of
+each run, and one JSONL line each in `runs.jsonl`. No credentials are stored;
+every provider authenticates itself.
 
 ## Why the withholding matters
 
@@ -96,8 +96,13 @@ not true.
 ```
 **Red team:** `gpt-6-astra` via codex (codex-cli 0.154.0), 2026-09-17,
 read-only, no repository access. Run `20260917T165202Z-a037c3`, withheld: our
-evidence and our retrieval - it is told the claim, not where we looked.
+evidence and our retrieval - it is told the claim, not where we looked. Leak
+check passed: the draft conclusion was not found in the brief. Brief sha256
+`9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08`.
 ```
+
+The brief each run was sent is kept beside its output, so the hash in the
+citation can be checked against it later.
 
 ## Use
 
@@ -108,7 +113,8 @@ python3 scripts/groupwork.py providers
 # attack an idea, without showing it where you looked
 python3 scripts/groupwork.py run red-team \
   --subject "a CLI that posts physical letters, priced per letter" \
-  --context "UK only. Signed For and Tracked. No subscription."
+  --context "UK only. Signed For and Tracked. No subscription." \
+  --no-prior-view
 
 # an independent read of a document, with a guard against your own view leaking in
 python3 scripts/groupwork.py run second-opinion \
@@ -116,7 +122,8 @@ python3 scripts/groupwork.py run second-opinion \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 
 # blind proposals, then adversarial rounds, fresh session each time
-python3 scripts/groupwork.py debate --subject "queue or cron" --rounds 2
+python3 scripts/groupwork.py debate --subject "queue or cron" --rounds 2 \
+  --no-prior-view
 
 python3 scripts/groupwork.py history
 ```
@@ -155,7 +162,8 @@ writing the day somebody runs groupwork from Codex.
 Each has a test. `AGENTS.md` is the file to read before changing anything.
 
 1. **A blind pattern's brief never carries your conclusion.** Passing it is an
-   error, not a silently ignored argument.
+   error, not a silently ignored argument. A blind run also needs
+   `--assert-withholds` or `--no-prior-view`, and the citation says which.
 2. **Empty output is a failure, never a clean review.** Codex writes its result
    only at completion, so a killed run leaves a zero-byte file; Copilot has a
    bug where it exits 0 having written nothing. Both otherwise read as "the

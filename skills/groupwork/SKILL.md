@@ -60,11 +60,16 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py run second-opinion \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 ```
 
-**Always pass `--assert-withholds` on a blind pattern.** Give it your draft
-conclusion. Nothing is added to the brief - it is checked for absence. If your
-view has found its way in through `--subject` or `--context`, the run is refused
-before it costs anything, rather than producing a review you would then have
-cited as independent.
+**A blind pattern needs `--assert-withholds` or `--no-prior-view`, and is
+refused without one.** Give `--assert-withholds` your draft conclusion, in at
+least six words. Nothing is added to the brief - it is checked for absence. Any
+run of six words from it that turns up in `--subject`, `--context`,
+`--question` or `--constraints` refuses the run before it costs anything, so a
+comma, a word in bold or one changed word does not get it past.
+
+Pass `--no-prior-view` only when you have not formed a view yet. The citation
+then says the leak check did not run and that you declared no view, rather
+than implying a check that never happened.
 
 Use `--dry-run` to read the brief before spending on it.
 
@@ -88,7 +93,8 @@ First match wins:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py debate \
-  --subject "queue or cron for the nightly reconcile" --rounds 2
+  --subject "queue or cron for the nightly reconcile" --rounds 2 \
+  --no-prior-view
 ```
 
 Round 0 is blind. Each later round shows the previous position and asks for an
@@ -116,13 +122,17 @@ Treat the counterpart as a colleague, not an authority.
 
 ## Citing it
 
-Every run appends to `~/.dbhq/groupwork/runs.jsonl` and keeps its raw output in
-`~/.dbhq/groupwork/runs/`. The command prints a citation line built from what
-actually happened - model, provider, CLI version, sandbox, and what the brief
-withheld. Paste that line into whatever document the finding lands in.
+Every run appends to `~/.dbhq/groupwork/runs.jsonl` and keeps the exact brief
+it was sent and its raw output in `~/.dbhq/groupwork/runs/`. The command prints
+a citation line built from what actually happened - model, provider, CLI
+version, sandbox, what the brief withheld, whether the leak check ran, and the
+sha256 of the stored brief. Paste that line into whatever document the finding
+lands in.
 
 The `withheld` field is copied from the pattern definition, not typed by anyone,
-so a `red-team` citation cannot claim an independence the run did not have.
+so a `red-team` citation cannot claim an independence the run did not have. A
+`red-team` run given `--repo-access` says the repository was open to it rather
+than claiming the evidence was withheld.
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py history --limit 10

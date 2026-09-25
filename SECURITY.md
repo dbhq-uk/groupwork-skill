@@ -13,9 +13,9 @@ credited in the fix unless you would rather not be.
   and `--context` is sent to whichever CLI you selected, and from there to that
   vendor. Treat a brief the way you would treat a prompt: do not put anything in
   it you would not send to OpenAI, GitHub or whoever backs your opencode config.
-- **Run records are kept locally**, in `~/.dbhq/groupwork/` at mode 700: the raw
-  output of each run and one JSONL line per run. Nothing is uploaded anywhere by
-  groupwork itself.
+- **Run records are kept locally**, in `~/.dbhq/groupwork/` at mode 700: the
+  brief each run was sent, its raw output, and one JSONL line per run. Nothing is
+  uploaded anywhere by groupwork itself.
 - **No credentials are stored.** Every provider authenticates itself through its
   own CLI. groupwork holds no token and writes no config.
 

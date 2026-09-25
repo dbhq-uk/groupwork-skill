@@ -4,16 +4,25 @@ Everything here runs against a stub provider, so the suite needs no CLI
 installed, no credentials and no network.
 """
 
+import hashlib
 import json
 import pathlib
 
 import pytest
 
+import brief
+import groupwork
 import patterns
 import provenance
 import providers
 import runner
 from providers.base import Provider
+
+
+DRAFT_VIEW = (
+    "We should ship the thing because the incumbent is weak and the market "
+    "is clearly wide open for a tool like ours."
+)
 
 
 class Stub(Provider):
@@ -179,6 +188,66 @@ def test_withheld_is_copied_from_the_pattern_not_supplied_by_the_caller():
     """Nobody is in a position to type an independence claim that is not true."""
     entry = provenance.record(go("red-team"))
     assert entry["withheld"] == patterns.PATTERNS["red-team"]["withholds"]
+
+
+def test_red_team_given_the_repo_does_not_claim_the_evidence_was_withheld():
+    """With --repo-access, anything in the repository was open to it."""
+    line = provenance.citation(go("red-team", repo_access=True, cwd="."))
+    assert "our evidence and our retrieval" not in line
+    assert "given the repository" in line
+
+
+def test_every_run_keeps_its_brief_and_records_its_hash():
+    """The brief is the only evidence of what the counterpart was told."""
+    entry = provenance.record(go(subject="the diff"))
+    stored = pathlib.Path(entry["brief_path"])
+    assert stored.name == f"{entry['id']}.brief.md"
+    assert stored.read_bytes() == b"a brief"
+    assert entry["brief_sha256"] == hashlib.sha256(b"a brief").hexdigest()
+    assert entry["brief_sha256"] in provenance.citation(entry)
+
+
+def test_the_brief_is_kept_when_the_run_fails():
+    Stub.payload = ""
+    with pytest.raises(runner.RunFailed):
+        go()
+    assert list((runner.STATE / "runs").glob("*.brief.md"))
+
+
+def test_the_citation_says_the_leak_check_passed():
+    text = brief.build("second-opinion", subject="a thing",
+                       assert_withholds=DRAFT_VIEW)
+    result = runner.run("second-opinion", text, provider_name="stub")
+    assert provenance.record(result)["leak_check"] == "passed"
+    assert "Leak check passed" in provenance.citation(result)
+
+
+def test_the_citation_says_the_leak_check_did_not_run():
+    text = brief.build("second-opinion", subject="a thing", no_prior_view=True)
+    result = runner.run("second-opinion", text, provider_name="stub")
+    assert provenance.record(result)["leak_check"] == "not-run"
+    assert "not run: the caller declared no prior view" in provenance.citation(result)
+
+
+def test_a_plain_string_brief_never_reads_as_checked():
+    """Only brief.build() runs the check, so only its output can say it passed."""
+    assert go()["leak_check"] == "not-run"
+
+
+def test_an_old_ledger_line_still_cites_without_claiming_a_check():
+    """Lines written before these fields existed must still show, and not overclaim."""
+    newer = {"leak_check", "no_prior_view", "brief_path", "brief_sha256"}
+    old = {k: v for k, v in go().items() if k not in newer}
+    line = provenance.citation(old)
+    assert "Leak check not recorded" in line
+    assert "sha256" not in line
+
+
+def test_a_blind_run_with_no_declaration_is_refused_by_the_cli(capsys):
+    code = groupwork.main(["run", "second-opinion", "--subject", "a thing",
+                           "--provider", "stub"])
+    assert code == 2
+    assert "--no-prior-view" in capsys.readouterr().err
 
 
 def test_the_citation_names_the_model_provider_version_and_what_was_withheld():

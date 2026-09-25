@@ -60,6 +60,22 @@ def find_triggers(text):
     return [p for p in patterns.TRIGGER_PHRASES if p.lower() in lowered]
 
 
+#: How many consecutive words two texts must share before it counts as a leak.
+#: Six is long enough that ordinary shared phrasing ("the rest of the code")
+#: does not trip it, and short enough that a view reworded in one or two
+#: places still leaves a run of six untouched somewhere.
+SHINGLE = 6
+
+
+def _words(text):
+    """Lower-case words with punctuation and markdown taken out.
+
+    A comma, `**bold**` or a line break changes nothing a reader sees in the
+    argument, so none of them should change whether a leak is found.
+    """
+    return re.findall(r"[^\W_]+", text.lower())
+
+
 def leaks(text, our_view):
     """Does this text carry our conclusion?
 
@@ -67,26 +83,48 @@ def leaks(text, our_view):
     caller who passes it in the right field. This catches the caller who pastes
     their view into `context` instead, which the type system cannot see.
 
-    Compares sentence by sentence rather than as one blob: a view reworded by a
-    word or two has still anchored the counterpart. Anything of eight words or
-    more appearing in both is treated as a leak.
+    Both sides are reduced to plain lower-case words, then every run of six
+    consecutive words in the view is looked for in the text, across sentence
+    boundaries. That catches a view with a comma added, a word in bold or one
+    word swapped, as long as the view is long enough to keep one run of six
+    intact. A view of fewer than six words cannot be checked this way, and
+    `build()` refuses one rather than report a check that did not happen.
+
+    Returns each matching run of words, longest runs merged, or [] if none.
     """
     if not our_view:
         return []
-    haystack = re.sub(r"\s+", " ", text.lower())
-    leaks = []
-    for sentence in re.split(r"[.!?\n]+", our_view):
-        words = sentence.split()
-        if len(words) < 8:
+    view = _words(our_view)
+    if len(view) < SHINGLE:
+        return []
+    hay = _words(text)
+    seen = {tuple(hay[i:i + SHINGLE]) for i in range(len(hay) - SHINGLE + 1)}
+    runs = []
+    for i in range(len(view) - SHINGLE + 1):
+        if tuple(view[i:i + SHINGLE]) not in seen:
             continue
-        needle = re.sub(r"\s+", " ", sentence.strip().lower())
-        if needle and needle in haystack:
-            leaks.append(sentence.strip())
-    return leaks
+        if runs and i <= runs[-1][1]:
+            runs[-1][1] = i + SHINGLE
+        else:
+            runs.append([i, i + SHINGLE])
+    return [" ".join(view[start:end]) for start, end in runs]
+
+
+class Brief(str):
+    """The brief text, carrying the result of the leak check that built it.
+
+    The runner copies `leak_check` into the ledger and the citation. It travels
+    with the text so that nobody downstream is in a position to type it: a brief
+    that did not come out of `build()` is a plain string, and reads as not-run.
+    """
+
+    leak_check = "not-run"
+    no_prior_view = False
 
 
 def build(pattern_name, subject, context="", question="", our_view=None,
-          constraints="", assert_withholds=None, round_=0):
+          constraints="", assert_withholds=None, round_=0, no_prior_view=False,
+          prior_round=""):
     """Build the brief for a pattern, or raise saying why it would be unsound.
 
     `our_view` is accepted for every pattern and permitted for one. Passing it
@@ -97,8 +135,18 @@ def build(pattern_name, subject, context="", question="", our_view=None,
     `assert_withholds` is the other half of that guard, and the one that catches
     the honest mistake. Pass your draft conclusion here when running a blind
     pattern; nothing is added to the brief, but if that text has found its way
-    in through `context` or `subject`, the build fails instead of producing a
-    review you would have cited as independent.
+    in through `subject`, `context`, `question` or `constraints`, the build fails
+    instead of producing a review you would have cited as independent.
+
+    A blind pattern needs one of `assert_withholds` or `no_prior_view`. Without
+    either, nothing could be said in the citation about whether our view was
+    kept out, so the build is refused rather than left to imply that it was.
+
+    `prior_round` is a model's answer from an earlier debate round. It goes into
+    the brief but not into the leak check: it is the counterpart's own work, not
+    ours, and reaching the same conclusion independently is not a leak.
+
+    Returns a `Brief`, which is the text plus the leak-check result.
     """
     spec = patterns.get(pattern_name)
 
@@ -109,10 +157,35 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             f"Use 'collaborate' if you want to work through it together."
         )
 
+    if assert_withholds and no_prior_view:
+        raise BriefError(
+            "pass --assert-withholds or --no-prior-view, not both: one says there "
+            "is a view to keep out and the other says there is none"
+        )
+    if spec["blind"] and not assert_withholds and not no_prior_view:
+        raise BriefError(
+            f"'{pattern_name}' is blind, so the citation has to say whether our "
+            f"view was kept out of the brief. Pass --assert-withholds with the "
+            f"draft conclusion to check for it, or --no-prior-view if no view has "
+            f"been formed yet."
+        )
+    if assert_withholds and len(_words(assert_withholds)) < SHINGLE:
+        raise BriefError(
+            f"--assert-withholds is too short to check: give the draft conclusion "
+            f"in at least {SHINGLE} words, or pass --no-prior-view if there is none"
+        )
+
+    full_context = context.strip()
+    if prior_round.strip():
+        full_context = (
+            f"{full_context}\n\n## The other position, from the previous round\n\n"
+            f"{prior_round.strip()}"
+        ).strip()
+
     body = load_template(spec["template"])
     text = body.format(
         subject=subject.strip(),
-        context=context.strip() or "(none supplied)",
+        context=full_context or "(none supplied)",
         question=question.strip() or spec["purpose"],
         constraints=constraints.strip() or "(none stated)",
         our_view=(our_view or "").strip(),
@@ -129,7 +202,11 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             "Reword the subject or context without them."
         )
 
-    leaked = leaks(text, assert_withholds)
+    # Only what the caller supplied is searched. The template is the same for
+    # every run and cannot carry anybody's view, so matching against it could
+    # only ever produce a false positive.
+    supplied = "\n".join([subject, context, question, constraints])
+    leaked = leaks(supplied, assert_withholds)
     if leaked:
         raise BriefError(
             f"'{pattern_name}' withholds {spec['withholds']}, but our view reached "
@@ -138,4 +215,7 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             f"as though it were."
         )
 
-    return text
+    result = Brief(text)
+    result.leak_check = "passed" if assert_withholds else "not-run"
+    result.no_prior_view = bool(no_prior_view)
+    return result
