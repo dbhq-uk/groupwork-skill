@@ -27,9 +27,13 @@ explicit decision per run.
 "Read-only" is not the same guarantee on every provider:
 
 - **codex** passes `--sandbox read-only` and the kernel enforces it.
-- **opencode** has no sandbox. Read-only there means `--auto` is not passed, so
-  a write attempt waits on a permission prompt nobody can answer, and is killed
-  by the timeout. That is weaker, it is recorded, and the citation names the
-  provider so a reader can weigh it.
+- **opencode** has no sandbox, and most of its tools are allowed by default.
+  groupwork passes an inline config in `OPENCODE_CONFIG_CONTENT` that denies
+  `edit`, `bash` apart from read-only `git` subcommands, `webfetch`,
+  `websearch`, `task`, `skill` and `external_directory`, both globally and on
+  the `build` agent the run uses. Inline config outranks project and user
+  config. This is a tool-permission deny enforced by opencode, not a sandbox: a
+  bug in its permission checks, or a `git` read given a flag that writes, is not
+  contained. The citation names the provider so a reader can weigh it.
 
 If you need a hard boundary, use codex.

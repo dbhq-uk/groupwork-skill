@@ -144,9 +144,13 @@ CLI and could not complete a run. It is not registered, so `groupwork providers`
 does not list it. It comes back once one real run has shown it works.
 
 One honest difference, stated rather than papered over: Codex takes
-`--sandbox read-only` and the kernel enforces it. opencode has no sandbox -
-read-only there means `--auto` is not passed, so a write attempt stalls instead
-of being refused. Both are recorded and the citation names the provider.
+`--sandbox read-only` and the kernel enforces it. opencode has no sandbox, and
+by default it allows most tools, including edits, bash and web fetches. So
+groupwork passes it an inline config (`OPENCODE_CONFIG_CONTENT`) that denies
+edits, bash apart from read-only `git` subcommands, web fetch and search,
+sub-agents, skills and directories outside the working one. That is a
+tool-permission deny that opencode enforces itself, not a sandbox. The citation
+names the provider, so a reader can weigh the difference.
 
 `claude -p` is deliberately absent. Run from inside Claude Code the counterpart
 would be the same model family as the host unless a different model is pinned,

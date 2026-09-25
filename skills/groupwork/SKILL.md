@@ -146,9 +146,11 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py show 20260917T143000Z-a1b2c3
 Two differences worth stating rather than papering over:
 
 **Sandboxing is not the same guarantee everywhere.** Codex takes
-`--sandbox read-only` and the kernel enforces it. opencode has no sandbox -
-read-only there means no `--auto` is passed, so a write attempt stalls rather
-than being refused. Both are recorded, and the citation names the provider.
+`--sandbox read-only` and the kernel enforces it. opencode has no sandbox, and
+most of its tools are allowed by default. groupwork passes it deny rules for
+file edits, bash (apart from read-only `git`), web fetch and search, sub-agents,
+skills and directories outside the working one. opencode enforces those itself,
+which is weaker than a kernel sandbox. The citation names the provider.
 
 **There is no `copilot` provider for now.** An adapter exists in the source,
 but it has never been run against the real CLI and could not complete a run, so
