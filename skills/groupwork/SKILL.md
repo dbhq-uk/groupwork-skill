@@ -146,7 +146,13 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py show 20260917T143000Z-a1b2c3
 Two differences worth stating rather than papering over:
 
 **Sandboxing is not the same guarantee everywhere.** Codex takes
-`--sandbox read-only` and the kernel enforces it. opencode has no sandbox, and
+`--sandbox read-only` and the kernel enforces it. That blocks writes, not reads,
+so a `red-team` run without the repository uses a Codex permission profile
+instead: it can read only the platform's runtime paths and an empty directory,
+with no network, and it is started in that directory. Where Codex cannot start
+its sandbox on the machine, the session fails before it begins and groupwork
+says so; `--repo-access` is the deliberate alternative, and the citation then
+says the repository was open to it. opencode has no sandbox, and
 most of its tools are allowed by default. groupwork passes it deny rules for
 file edits, bash (apart from read-only `git`), web fetch and search, sub-agents,
 skills and directories outside the working one. opencode enforces those itself,

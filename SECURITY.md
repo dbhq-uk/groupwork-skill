@@ -26,7 +26,12 @@ explicit decision per run.
 
 "Read-only" is not the same guarantee on every provider:
 
-- **codex** passes `--sandbox read-only` and the kernel enforces it.
+- **codex** passes `--sandbox read-only` and the kernel enforces it. That
+  blocks writes, not reads. A `red-team` run without the repository uses a
+  Codex permission profile instead, readable only for the platform's runtime
+  paths and an empty working directory, with no network, and is started in that
+  directory. If Codex cannot start its sandbox on the host, the run fails before
+  the session begins rather than running with the repository readable.
 - **opencode** has no sandbox, and most of its tools are allowed by default.
   groupwork passes an inline config in `OPENCODE_CONFIG_CONTENT` that denies
   `edit`, `bash` apart from read-only `git` subcommands, `webfetch`,
