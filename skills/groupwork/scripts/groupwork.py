@@ -3,7 +3,9 @@
 
     groupwork.py providers
     groupwork.py patterns
-    groupwork.py run <pattern> --subject ... [--context ...] [--provider ...]
+    groupwork.py run <pattern> --subject ... [--context ...] [--background]
+    groupwork.py status <run-id>
+    groupwork.py result <run-id>
     groupwork.py debate --subject ... [--rounds 2]
     groupwork.py history [--limit 10]
     groupwork.py show <run-id>
@@ -18,6 +20,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import background  # noqa: E402
 import brief  # noqa: E402
 import patterns  # noqa: E402
 import provenance  # noqa: E402
@@ -59,6 +62,14 @@ def cmd_patterns(args):
     return 0
 
 
+def _fail(args, message, code):
+    """Say why the run stopped, and leave the reason where `status` finds it."""
+    print(message, file=sys.stderr)
+    if args.run_id:
+        background.mark_failed(args.run_id, message)
+    return code
+
+
 def cmd_run(args):
     try:
         text = brief.build(
@@ -72,11 +83,22 @@ def cmd_run(args):
             no_prior_view=args.no_prior_view,
         )
     except (brief.BriefError, ValueError) as exc:
-        print(f"Brief refused: {exc}", file=sys.stderr)
-        return 2
+        return _fail(args, f"Brief refused: {exc}", 2)
 
     if args.dry_run:
         print(text)
+        return 0
+
+    # The brief is built above either way, so a refusal comes back at once
+    # rather than turning up later as a failed background run. The detached
+    # process builds it again from the same arguments: the leak-check result
+    # travels with a brief built by brief.build(), never through a file.
+    if args.background and not args.run_id:
+        run_id = runner.new_run_id()
+        background.launch(pathlib.Path(__file__).resolve(), args.argv, run_id)
+        print(run_id)
+        print(f"Running in the background. Check it with: groupwork.py status {run_id}",
+              file=sys.stderr)
         return 0
 
     try:
@@ -91,10 +113,10 @@ def cmd_run(args):
             allow_write=args.allow_write,
             subject=args.subject,
             timeout=args.timeout,
+            run_id=args.run_id,
         )
     except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
-        print(f"Run failed: {exc}", file=sys.stderr)
-        return 1
+        return _fail(args, f"Run failed: {exc}", 1)
 
     provenance.record(result)
     print(result["output"])
@@ -150,6 +172,35 @@ def cmd_debate(args):
     print("Where the rounds agree is the reliable part. Where they diverge is "
           "the real trade-off, and it is yours to settle.")
     return 0
+
+
+def cmd_status(args):
+    state, detail, _ = background.state(args.run_id)
+    if state == "unknown":
+        print(f"No run '{args.run_id}'.", file=sys.stderr)
+        return 1
+    print(f"{args.run_id}  {state}")
+    print(f"    {detail}")
+    return 0
+
+
+def cmd_result(args):
+    state, detail, row = background.state(args.run_id)
+    if state == "done":
+        print(row["output"])
+        print()
+        print("---")
+        print(provenance.citation(row))
+        return 0
+    if state == "running":
+        print(f"{args.run_id} is still running ({detail}). Check again with "
+              f"`status`.", file=sys.stderr)
+        return 3
+    if state == "failed":
+        print(f"{args.run_id} failed: {detail}", file=sys.stderr)
+        return 1
+    print(f"No run '{args.run_id}'.", file=sys.stderr)
+    return 1
 
 
 def cmd_history(args):
@@ -223,7 +274,21 @@ def main(argv=None):
                      help="print the brief and run nothing")
     run.add_argument("--timeout", type=_seconds,
                      help="seconds before the run is stopped (default: by effort)")
+    run.add_argument("--background", action="store_true",
+                     help="start the run detached, print its id and return at once")
+    # Given to the detached process by --background. Not for use by hand.
+    run.add_argument("--run-id", dest="run_id", help=argparse.SUPPRESS)
     run.set_defaults(func=cmd_run)
+
+    status = sub.add_parser("status", help="whether a run is running, done or failed")
+    status.add_argument("run_id")
+    status.set_defaults(func=cmd_status)
+
+    result = sub.add_parser(
+        "result", help="a finished run's answer and citation (exit 3 if still running)"
+    )
+    result.add_argument("run_id")
+    result.set_defaults(func=cmd_result)
 
     debate = sub.add_parser("debate", help="blind proposals, then adversarial rounds")
     debate.add_argument("--subject", required=True)
@@ -250,7 +315,9 @@ def main(argv=None):
     show.add_argument("run_id")
     show.set_defaults(func=cmd_show)
 
+    argv = sys.argv[1:] if argv is None else list(argv)
     args = parser.parse_args(argv)
+    args.argv = argv
     return args.func(args)
 
 

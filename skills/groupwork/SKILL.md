@@ -52,13 +52,33 @@ in a second and then refuses to run. The command distinguishes the two.
 
 ## Run one
 
+**Always pass `--background`, then poll.** A run at `high` effort can take more
+than ten minutes, and one at `max` more than twenty. That is longer than most
+hosts let one command run: the Claude Code Bash tool stops a command after two
+minutes by default and ten at most. A host that stops a foreground run loses
+it.
+
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py run second-opinion \
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py run second-opinion --background \
   --subject "the Terraform tool research in docs/research/..." \
   --context "$(gh pr view 12 --json title,body -q '.body')" \
   --question "does the recommendation survive its own evidence?" \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 ```
+
+It builds the brief, starts the run detached and prints the run id at once. A
+brief that would be refused is refused there and then, before anything starts.
+Then check on it, a minute or two apart, each check a short command of its own:
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py status 20260925T101500Z-a1b2c3
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py result 20260925T101500Z-a1b2c3
+```
+
+`status` says `running`, `done` or `failed`, with the reason for a failure.
+`result` prints the answer and the citation once the run is done. It exits 3
+while the run is still going, and 1 if it failed. Carry on with other work
+between checks rather than sleeping through the whole run in one command.
 
 **A blind pattern needs `--assert-withholds` or `--no-prior-view`, and is
 refused without one.** Give `--assert-withholds` your draft conclusion, in at

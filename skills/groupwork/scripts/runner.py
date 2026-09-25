@@ -17,6 +17,7 @@ Every rule below is a failure someone has actually had, not a precaution.
 import hashlib
 import os
 import pathlib
+import re
 import tempfile
 import time
 import uuid
@@ -71,6 +72,19 @@ class RunFailed(RuntimeError):
     """The run did not produce a usable answer, and the reason is in the message."""
 
 
+#: What a run id looks like: the UTC start time and six hex digits. Anything
+#: else is refused before it is used in a path under runs/.
+RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$")
+
+
+def new_run_id():
+    return f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
+
+
+def valid_run_id(run_id):
+    return bool(RUN_ID.match(run_id or ""))
+
+
 def _state_dir():
     runs = STATE / "runs"
     runs.mkdir(parents=True, exist_ok=True)
@@ -98,8 +112,14 @@ def _isolated_cwd():
 
 def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         repo_access=None, model=None, effort=None, allow_write=False,
-        subject="", timeout=None):
-    """Run one brief. Returns a record dict; raises RunFailed on anything else."""
+        subject="", timeout=None, run_id=None):
+    """Run one brief. Returns a record dict; raises RunFailed on anything else.
+
+    `run_id` is given by a background launch, which has to print the id before
+    the run starts. Otherwise a new one is made here.
+    """
+    if run_id is not None and not valid_run_id(run_id):
+        raise RunFailed(f"'{run_id}' is not a run id")
     spec = patterns.get(pattern_name)
     provider = providers.get(provider_name)
     caps = provider.capabilities()
@@ -133,7 +153,7 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
 
     timeout = timeout or patterns.TIMEOUTS.get(used_effort, patterns.TIMEOUTS["high"])
 
-    run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
+    run_id = run_id or new_run_id()
     runs = _state_dir()
     out_path = runs / f"{run_id}.md"
     log_path = runs / f"{run_id}.log"
@@ -142,6 +162,8 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     # only evidence of what the counterpart was actually told, and its hash goes
     # into the citation so the stored copy can be checked against it later.
     brief_path = runs / f"{run_id}.brief.md"
+    if brief_path.exists() or out_path.exists():
+        raise RunFailed(f"run {run_id} already exists; a run id is used once")
     brief_bytes = str(brief_text).encode("utf-8")
     brief_path.write_bytes(brief_bytes)
     brief_sha256 = hashlib.sha256(brief_bytes).hexdigest()
