@@ -14,6 +14,7 @@ anybody. A red-team run cannot claim an independence it did not have, because
 nobody is in a position to type the claim.
 """
 
+import fcntl
 import json
 import pathlib
 
@@ -33,7 +34,11 @@ FIELDS = [
     "experimental_adapter", "started_utc", "ended_utc", "duration_s",
     "subject", "withheld", "output_path",
     "leak_check", "no_prior_view", "brief_path", "brief_sha256",
+    "panel_id", "panel_round",
 ]
+
+#: Fields only a panel member has. Every other run leaves them empty.
+PANEL_FIELDS = {"panel_id", "panel_round"}
 
 
 def record(run):
@@ -41,7 +46,11 @@ def record(run):
     entry = {field: run.get(field) for field in FIELDS}
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
     with LEDGER.open("a", encoding="utf-8") as handle:
+        # Panel members finish at the same time in separate processes. The
+        # lock keeps two of their lines from interleaving.
+        fcntl.flock(handle, fcntl.LOCK_EX)
         handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        handle.flush()
     return entry
 
 
@@ -56,8 +65,12 @@ def citation(run):
         "second-opinion": "Second opinion",
         "verify": "Verification pass",
         "collaborate": "Worked through with",
+        "panel": "Panel member",
+        # Retired, but its runs are still in older ledgers and still cite.
         "debate": "Debated with",
     }.get(run["pattern"], run["pattern"])
+    if run["pattern"] == "panel" and run.get("panel_round"):
+        label = "Panel critique"
 
     date = run["started_utc"][:10]
     # Parenthesised, because a version string usually carries the tool's own
@@ -70,6 +83,8 @@ def citation(run):
     if not run["repo_access"]:
         bits.append("no repository access")
     line = ", ".join(bits)
+    if run.get("panel_id"):
+        line += f", panel `{run['panel_id']}`"
 
     detail = f"withheld: {run['withheld']}"
     detail += f". {_leak_check_line(run)}"

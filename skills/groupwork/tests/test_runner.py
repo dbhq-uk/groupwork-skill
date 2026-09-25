@@ -484,6 +484,9 @@ def test_every_ledger_field_is_present_and_populated():
     entry = provenance.record(go(subject="the diff on this branch"))
     for field in provenance.FIELDS:
         assert field in entry, f"ledger is missing {field}"
+        if field in provenance.PANEL_FIELDS:
+            assert entry[field] is None, f"{field} set on a run outside a panel"
+            continue
         assert entry[field] not in (None, ""), f"ledger field {field} is empty"
 
 

@@ -149,14 +149,15 @@ def test_both_declarations_at_once_are_refused():
                     assert_withholds=DRAFT_VIEW, no_prior_view=True)
 
 
-def test_a_debate_round_is_not_checked_against_the_last_round_answer():
-    """The earlier answer is the counterpart's own work. Agreeing is not a leak."""
+def test_a_panel_answer_that_reaches_our_view_is_not_a_leak():
+    """The first answers are the members' own work. Agreeing is not a leak."""
     text = brief.build(
-        "debate", subject="queue or cron", round_=1, assert_withholds=DRAFT_VIEW,
-        prior_round=DRAFT_VIEW,
+        "panel", subject="queue or cron", assert_withholds=DRAFT_VIEW,
+        answers=[DRAFT_VIEW, "Use cron, it is simpler."],
     )
     assert "incumbent is weak" in text
     assert text.leak_check == "passed"
+    assert text.answers_shown == 2
 
 
 # --- Rule 3: no brief contains groupwork's own trigger phrases ----------------
@@ -180,6 +181,36 @@ def test_build_rejects_a_trigger_phrase_in_the_subject():
     with pytest.raises(brief.BriefError, match="re-trigger"):
         brief.build("verify", subject="give me a second opinion on the diff",
                     no_prior_view=True)
+
+
+def test_a_critique_is_never_refused_for_words_in_an_earlier_answer():
+    """The first round has been paid for by then. Its words are not a brief.
+
+    debate ran the trigger check over the previous round's answer, so a model
+    that wrote "counterpart" or "second opinion" got the next round refused.
+    The check now runs on the brief before any answer goes in.
+    """
+    answers = [
+        "My counterpart argued for cron. A second opinion would help.",
+        "Use a red team on the queue design before anything ships.",
+    ]
+    text = brief.build("panel", subject="queue or cron", no_prior_view=True,
+                       answers=answers)
+    assert "### Answer A" in text and "### Answer B" in text
+    for answer in answers:
+        assert answer in text
+
+
+def test_a_critique_still_refuses_a_trigger_phrase_from_the_caller():
+    with pytest.raises(brief.BriefError, match="re-trigger"):
+        brief.build("panel", subject="a second opinion on queue or cron",
+                    no_prior_view=True, answers=["one", "two"])
+
+
+def test_a_critique_needs_two_answers_to_compare():
+    with pytest.raises(brief.BriefError, match="at least two"):
+        brief.build("panel", subject="queue or cron", no_prior_view=True,
+                    answers=["only one"])
 
 
 def test_trigger_list_covers_every_phrase_in_the_skill_frontmatter():
@@ -222,7 +253,7 @@ def test_red_team_withholds_the_repository():
 
 
 def test_adversarial_patterns_use_the_frontier_model():
-    for name in ("red-team", "second-opinion", "verify", "debate"):
+    for name in ("red-team", "second-opinion", "verify", "panel"):
         assert patterns.PATTERNS[name]["model"] == "gpt-6-astra"
         assert patterns.PATTERNS[name]["effort"] == "high"
 
@@ -234,6 +265,22 @@ def test_collaborate_does_not():
 def test_every_pattern_has_a_template_that_exists():
     for name, spec in patterns.PATTERNS.items():
         assert (TEMPLATES / spec["template"]).exists(), f"{name} has no template"
+        if spec.get("critique_template"):
+            assert (TEMPLATES / spec["critique_template"]).exists(), name
+
+
+def test_debate_is_gone_and_nothing_claims_two_parties():
+    """debate told one model that two parties had answered independently.
+
+    The only templates that say other people are answering are panel's, and a
+    panel always starts at least two members.
+    """
+    assert "debate" not in patterns.PATTERNS
+    assert not (TEMPLATES / "debate.md").exists()
+    claims = re.compile(r"two parties|other people|put to several people", re.I)
+    for template in TEMPLATES.glob("*.md"):
+        if claims.search(template.read_text(encoding="utf-8")):
+            assert template.name.startswith("panel"), template.name
 
 
 def test_every_pattern_builds():

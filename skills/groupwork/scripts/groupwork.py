@@ -6,7 +6,7 @@
     groupwork.py run <pattern> --subject ... [--context ...] [--background]
     groupwork.py status <run-id>
     groupwork.py result <run-id>
-    groupwork.py debate --subject ... [--rounds 2]
+    groupwork.py panel --subject ... [--members codex,opencode] [--critique]
     groupwork.py history [--limit 10]
     groupwork.py show <run-id>
 
@@ -15,6 +15,7 @@ to configure and no credential to store.
 """
 
 import argparse
+import contextlib
 import pathlib
 import sys
 
@@ -22,6 +23,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import background  # noqa: E402
 import brief  # noqa: E402
+import panel  # noqa: E402
 import patterns  # noqa: E402
 import provenance  # noqa: E402
 import providers  # noqa: E402
@@ -71,7 +73,14 @@ def _fail(args, message, code):
 
 
 def cmd_run(args):
+    if args.pattern == "panel" and not (args.panel_id and args.run_id):
+        return _fail(args, "Brief refused: a panel runs through `groupwork.py "
+                     "panel`, which starts at least two members. One run on "
+                     "its own is not a panel.", 2)
     try:
+        answers = None
+        if args.panel_critique:
+            answers = panel.first_answers(args.panel_id)
         text = brief.build(
             args.pattern,
             subject=args.subject,
@@ -81,8 +90,9 @@ def cmd_run(args):
             our_view=args.our_view,
             assert_withholds=args.assert_withholds,
             no_prior_view=args.no_prior_view,
+            answers=answers,
         )
-    except (brief.BriefError, ValueError) as exc:
+    except (brief.BriefError, ValueError, OSError) as exc:
         return _fail(args, f"Brief refused: {exc}", 2)
 
     if args.dry_run:
@@ -114,6 +124,7 @@ def cmd_run(args):
             subject=args.subject,
             timeout=args.timeout,
             run_id=args.run_id,
+            panel_id=args.panel_id,
         )
     except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
         return _fail(args, f"Run failed: {exc}", 1)
@@ -126,66 +137,71 @@ def cmd_run(args):
     return 0
 
 
-def cmd_debate(args):
-    """Blind proposals, then adversarial critique, with a fresh session a round.
+def cmd_panel(args):
+    """Several blind answers in parallel, for the host to reconcile.
 
-    The fresh session is not an implementation detail. A reviewer that already
-    argued a position in round 1 defends it in round 2 rather than re-examining
-    it, so a resumed session produces entrenchment and calls it convergence.
+    The brief is built here first, exactly as each member will build it, so a
+    refusal comes back at once rather than as a panel of failed members.
     """
-    transcript = []
-    for round_ in range(args.rounds + 1):
-        try:
-            text = brief.build(
-                "debate",
-                subject=args.subject,
-                context=args.context or "",
-                question=args.question or "",
-                constraints=args.constraints or "",
-                round_=round_,
-                assert_withholds=args.assert_withholds,
-                no_prior_view=args.no_prior_view,
-                prior_round=transcript[-1]["output"] if transcript else "",
-            )
-        except (brief.BriefError, ValueError) as exc:
-            print(f"Brief refused at round {round_}: {exc}", file=sys.stderr)
-            return 2
-        try:
-            result = runner.run(
-                "debate", text, provider_name=args.provider, cwd=args.cwd,
-                model=args.model, subject=f"{args.subject} (round {round_})",
-                timeout=args.timeout,
-            )
-        except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
-            print(f"Round {round_} failed: {exc}", file=sys.stderr)
-            return 1
-        provenance.record(result)
-        transcript.append(result)
-        print(f"## Round {round_}\n")
-        print(result["output"])
-        print()
+    try:
+        brief.build(
+            "panel",
+            subject=args.subject,
+            context=args.context or "",
+            question=args.question or "",
+            constraints=args.constraints or "",
+            assert_withholds=args.assert_withholds,
+            no_prior_view=args.no_prior_view,
+        )
+        if args.members:
+            panel.parse_members(args.members)
+    except (brief.BriefError, ValueError) as exc:
+        return _fail(args, f"Panel refused: {exc}", 2)
 
-    print("---")
-    for result in transcript:
-        print(provenance.citation(result))
-    print()
-    print("Where the rounds agree is the reliable part. Where they diverge is "
-          "the real trade-off, and it is yours to settle.")
+    script = pathlib.Path(__file__).resolve()
+    if args.background and not args.run_id:
+        panel_id = runner.new_run_id()
+        background.launch(script, args.argv, panel_id)
+        print(panel_id)
+        print(f"Panel running in the background. Check it with: groupwork.py "
+              f"status {panel_id}", file=sys.stderr)
+        return 0
+
+    panel_id = args.run_id or runner.new_run_id()
+    print(f"Panel {panel_id} started.", file=sys.stderr)
+    lock = (background.hold(panel_id) if not args.run_id
+            else contextlib.nullcontext())
+    try:
+        with lock:
+            panel.coordinate(args, script, panel_id)
+    except panel.PanelFailed as exc:
+        return _fail(args, f"Panel failed: {exc}", 1)
+    print(panel.render(panel_id))
     return 0
 
 
+def _state(run_id):
+    if panel.is_panel(run_id):
+        return panel.state(run_id)
+    return background.state(run_id)
+
+
 def cmd_status(args):
-    state, detail, _ = background.state(args.run_id)
+    state, detail, _ = _state(args.run_id)
     if state == "unknown":
         print(f"No run '{args.run_id}'.", file=sys.stderr)
         return 1
     print(f"{args.run_id}  {state}")
-    print(f"    {detail}")
+    for line in detail.splitlines():
+        print(f"    {line}")
     return 0
 
 
 def cmd_result(args):
-    state, detail, row = background.state(args.run_id)
+    state, detail, row = _state(args.run_id)
+    if state == "done" and panel.is_panel(args.run_id):
+        print(panel.render(args.run_id))
+        return 0
     if state == "done":
         print(row["output"])
         print()
@@ -276,8 +292,12 @@ def main(argv=None):
                      help="seconds before the run is stopped (default: by effort)")
     run.add_argument("--background", action="store_true",
                      help="start the run detached, print its id and return at once")
-    # Given to the detached process by --background. Not for use by hand.
+    # Given to the detached process by --background, and to each member by a
+    # panel. Not for use by hand.
     run.add_argument("--run-id", dest="run_id", help=argparse.SUPPRESS)
+    run.add_argument("--panel-id", dest="panel_id", help=argparse.SUPPRESS)
+    run.add_argument("--panel-critique", dest="panel_critique",
+                     action="store_true", help=argparse.SUPPRESS)
     run.set_defaults(func=cmd_run)
 
     status = sub.add_parser("status", help="whether a run is running, done or failed")
@@ -290,22 +310,31 @@ def main(argv=None):
     result.add_argument("run_id")
     result.set_defaults(func=cmd_result)
 
-    debate = sub.add_parser("debate", help="blind proposals, then adversarial rounds")
-    debate.add_argument("--subject", required=True)
-    debate.add_argument("--context")
-    debate.add_argument("--question")
-    debate.add_argument("--constraints")
-    debate.add_argument("--rounds", type=int, default=2)
-    debate.add_argument("--assert-withholds", dest="assert_withholds",
-                        help="our draft conclusion, checked for absence and not included")
-    debate.add_argument("--no-prior-view", dest="no_prior_view", action="store_true",
-                        help="declare that no view has been formed yet")
-    debate.add_argument("--provider", choices=sorted(providers.REGISTRY))
-    debate.add_argument("--model")
-    debate.add_argument("--cwd")
-    debate.add_argument("--timeout", type=_seconds,
-                        help="seconds before each round is stopped (default: by effort)")
-    debate.set_defaults(func=cmd_debate)
+    pan = sub.add_parser(
+        "panel", help="several blind answers in parallel, for you to reconcile"
+    )
+    pan.add_argument("--subject", required=True, help="the question")
+    pan.add_argument("--context", help="everything from outside the repo it will need")
+    pan.add_argument("--question", help="what specifically is being decided")
+    pan.add_argument("--constraints", help="what binds any answer")
+    pan.add_argument("--assert-withholds", dest="assert_withholds",
+                     help="our draft conclusion, checked for absence and not included")
+    pan.add_argument("--no-prior-view", dest="no_prior_view", action="store_true",
+                     help="declare that no view has been formed yet")
+    pan.add_argument("--members",
+                     help="provider[:model], comma-separated, at least two "
+                          "(default: one per ready provider)")
+    pan.add_argument("--critique", action="store_true",
+                     help="then one round where each member attacks every "
+                          "first answer, unlabelled")
+    pan.add_argument("--effort", choices=patterns.EFFORTS)
+    pan.add_argument("--cwd", help="where to run (default: here)")
+    pan.add_argument("--timeout", type=_seconds,
+                     help="seconds before each member is stopped (default: by effort)")
+    pan.add_argument("--background", action="store_true",
+                     help="start the panel detached, print its id and return at once")
+    pan.add_argument("--run-id", dest="run_id", help=argparse.SUPPRESS)
+    pan.set_defaults(func=cmd_panel)
 
     history = sub.add_parser("history", help="past runs")
     history.add_argument("--limit", type=int, default=10)

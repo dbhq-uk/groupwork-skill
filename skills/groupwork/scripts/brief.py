@@ -116,15 +116,33 @@ class Brief(str):
     The runner copies `leak_check` into the ledger and the citation. It travels
     with the text so that nobody downstream is in a position to type it: a brief
     that did not come out of `build()` is a plain string, and reads as not-run.
+
+    `answers_shown` is how many earlier answers went into it, for a panel
+    critique. The runner reads it to pick what the citation says was withheld,
+    for the same reason: only the code that inserted them can say so.
     """
 
     leak_check = "not-run"
     no_prior_view = False
+    answers_shown = 0
+
+
+#: Stands in for the earlier answers while the brief is checked. The answers
+#: are models' own words, put in only after every check has run.
+_ANSWERS = "\x00answers\x00"
+
+
+def answer_block(answers):
+    """The earlier answers, labelled A, B, C in the order given."""
+    parts = []
+    for index, text in enumerate(answers):
+        parts.append(f"### Answer {chr(ord('A') + index)}\n\n{text.strip()}")
+    return "\n\n".join(parts)
 
 
 def build(pattern_name, subject, context="", question="", our_view=None,
-          constraints="", assert_withholds=None, round_=0, no_prior_view=False,
-          prior_round=""):
+          constraints="", assert_withholds=None, no_prior_view=False,
+          answers=None):
     """Build the brief for a pattern, or raise saying why it would be unsound.
 
     `our_view` is accepted for every pattern and permitted for one. Passing it
@@ -142,9 +160,11 @@ def build(pattern_name, subject, context="", question="", our_view=None,
     either, nothing could be said in the citation about whether our view was
     kept out, so the build is refused rather than left to imply that it was.
 
-    `prior_round` is a model's answer from an earlier debate round. It goes into
-    the brief but not into the leak check: it is the counterpart's own work, not
-    ours, and reaching the same conclusion independently is not a leak.
+    `answers` are the first answers of a panel, for its critique round. They
+    go in after the trigger check and the leak check, and neither looks at
+    them. They are models' own words: an answer that happens to use one of
+    groupwork's trigger phrases must not refuse a round that has already been
+    paid for, and an answer that reaches our conclusion alone is not a leak.
 
     Returns a `Brief`, which is the text plus the leak-check result.
     """
@@ -175,21 +195,21 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             f"in at least {SHINGLE} words, or pass --no-prior-view if there is none"
         )
 
-    full_context = context.strip()
-    if prior_round.strip():
-        full_context = (
-            f"{full_context}\n\n## The other position, from the previous round\n\n"
-            f"{prior_round.strip()}"
-        ).strip()
-
-    body = load_template(spec["template"])
+    if answers is not None:
+        if not spec.get("critique_template"):
+            raise BriefError(f"'{pattern_name}' has no critique round")
+        if len(answers) < 2:
+            raise BriefError("a critique round needs at least two answers to compare")
+        body = load_template(spec["critique_template"])
+    else:
+        body = load_template(spec["template"])
     text = body.format(
         subject=subject.strip(),
-        context=full_context or "(none supplied)",
-        question=question.strip() or spec["purpose"],
+        context=context.strip() or "(none supplied)",
+        question=question.strip() or spec.get("default_question") or spec["purpose"],
         constraints=constraints.strip() or "(none stated)",
         our_view=(our_view or "").strip(),
-        round=round_,
+        answers=_ANSWERS,
         sole_reviewer=SOLE_REVIEWER,
         output_contract=OUTPUT_CONTRACT,
     )
@@ -215,7 +235,11 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             f"as though it were."
         )
 
+    if answers is not None:
+        text = text.replace(_ANSWERS, answer_block(answers))
+
     result = Brief(text)
     result.leak_check = "passed" if assert_withholds else "not-run"
     result.no_prior_view = bool(no_prior_view)
+    result.answers_shown = len(answers) if answers is not None else 0
     return result
