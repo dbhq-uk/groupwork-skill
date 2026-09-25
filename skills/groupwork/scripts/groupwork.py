@@ -111,25 +111,30 @@ def cmd_run(args):
               file=sys.stderr)
         return 0
 
+    # A foreground run holds its own lock, so `status` from another shell says
+    # running. A detached one was handed the lock when it was launched.
+    run_id = args.run_id or runner.new_run_id()
+    lock = background.hold(run_id) if not args.run_id else contextlib.nullcontext()
     try:
-        result = runner.run(
-            args.pattern,
-            text,
-            provider_name=args.provider,
-            cwd=args.cwd,
-            repo_access=(True if args.repo_access else None),
-            model=args.model,
-            effort=args.effort,
-            allow_write=args.allow_write,
-            subject=args.subject,
-            timeout=args.timeout,
-            run_id=args.run_id,
-            panel_id=args.panel_id,
-        )
+        with lock:
+            result = runner.run(
+                args.pattern,
+                text,
+                provider_name=args.provider,
+                cwd=args.cwd,
+                repo_access=(True if args.repo_access else None),
+                model=args.model,
+                effort=args.effort,
+                allow_write=args.allow_write,
+                subject=args.subject,
+                timeout=args.timeout,
+                run_id=run_id,
+                panel_id=args.panel_id,
+            )
     except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
         return _fail(args, f"Run failed: {exc}", 1)
 
-    provenance.record(result)
+    # runner.run() has already written the ledger lines, the last one "done".
     print(result["output"])
     print()
     print("---")
@@ -219,16 +224,42 @@ def cmd_result(args):
     return 1
 
 
+#: How history and show name a run that did not finish cleanly.
+_ENDED = {
+    "failed": "failed",
+    "timed-out": "timed out",
+    "stopped": "stopped",
+    "unrecorded": "no result recorded",
+}
+
+
+def _ended(row):
+    """Empty for a run that is done, else how it ended, in words."""
+    status = provenance.status(row)
+    if status == "done":
+        return ""
+    if status == "started":
+        return "running" if background.running(row["id"]) else "stopped"
+    return _ENDED.get(status, status)
+
+
 def cmd_history(args):
-    rows = provenance.read_ledger(limit=args.limit)
+    rows = provenance.runs(limit=args.limit)
     if not rows:
         print("Nothing has been run yet.")
         return 0
     for row in rows:
         repo = "" if row.get("repo_access") else ", no repo"
-        print(f"{row['id']}  {row['pattern']:<15} {row['provider']:<9} "
-              f"{row['model']:<14} {row['duration_s']}s{repo}")
-        print(f"    {row['subject'][:100]}")
+        duration = row.get("duration_s")
+        took = f"{duration}s" if duration is not None else "-"
+        ended = _ended(row)
+        mark = f"  [{ended}]" if ended else ""
+        print(f"{row['id']}  {row.get('pattern', '?'):<15} "
+              f"{row.get('provider', '?'):<9} {row.get('model') or '?':<14} "
+              f"{took}{repo}{mark}")
+        print(f"    {(row.get('subject') or '')[:100]}")
+        if row.get("error") and ended:
+            print(f"    {row['error'][:200]}")
     return 0
 
 
@@ -236,6 +267,27 @@ def cmd_show(args):
     row = provenance.find(args.run_id)
     if not row:
         print(f"No run '{args.run_id}'.", file=sys.stderr)
+        return 1
+    ended = _ended(row)
+    if ended:
+        # No answer to cite. Say what happened and where the evidence is.
+        print(f"Run {args.run_id}: {ended}.")
+        if row.get("error"):
+            print(row["error"])
+        output = pathlib.Path(row.get("output_path") or "")
+        for label, path in (
+            ("Brief", row.get("brief_path")),
+            ("Log", row.get("log_path") or (str(output.with_suffix(".log"))
+                                            if output.name else None)),
+        ):
+            if path and pathlib.Path(path).exists():
+                print(f"{label}: {path}")
+        if row.get("output", "").strip():
+            print()
+            print("Its output file holds this, but the run did not end cleanly, "
+                  "so it has no citation:")
+            print()
+            print(row["output"])
         return 1
     print(row["output"])
     print()

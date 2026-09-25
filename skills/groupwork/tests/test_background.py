@@ -164,3 +164,28 @@ def test_a_run_id_that_is_not_one_is_never_used_as_a_path(world, capsys):
     assert groupwork.main(["status", "../../etc/passwd"]) == 1
     with pytest.raises(runner.RunFailed, match="not a run id"):
         runner.run("verify", "a brief", provider_name="codex", run_id="../x")
+
+
+def test_a_foreground_run_in_progress_reads_as_running(world, capsys):
+    """It has a "started" line and nothing after, so only its lock says it is alive."""
+    tmp_path, env = world
+    proc = subprocess.Popen(
+        [sys.executable, str(SCRIPT), "run", "second-opinion", "--subject", "a thing",
+         "--no-prior-view", "--provider", "codex", "--timeout", "60"],
+        env=env, cwd=str(tmp_path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        wait_for(tmp_path / "started")
+        (row,) = provenance.runs()
+        assert row["status"] == "started"
+        assert groupwork.main(["status", row["id"]]) == 0
+        assert "running" in capsys.readouterr().out
+        assert groupwork.main(["history"]) == 0
+        assert "[running]" in capsys.readouterr().out
+        (tmp_path / "release").touch()
+        assert proc.wait(timeout=20) == 0
+        assert groupwork.main(["status", row["id"]]) == 0
+        assert "done" in capsys.readouterr().out
+    finally:
+        if proc.poll() is None:
+            proc.kill()

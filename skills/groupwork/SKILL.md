@@ -183,6 +183,11 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py history --limit 10
 python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py show 20260917T143000Z-a1b2c3
 ```
 
+A run that fails, times out or is stopped is in the ledger too: one line when
+it starts and one when it ends, so `history` marks it `[failed]`,
+`[timed out]` or `[stopped]`. `show` on one of those prints what went wrong and
+where its log is, and no citation, because there is no finding to cite.
+
 ## Providers
 
 `codex` by default. `opencode` carries other model families behind one adapter.

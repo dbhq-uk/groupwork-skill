@@ -149,8 +149,14 @@ def ordered(rows):
     )
 
 
+def _answer(run_id):
+    """A member's ledger row if it finished with an answer, else None."""
+    row = provenance.find(run_id)
+    return row if row and provenance.status(row) == "done" else None
+
+
 def _rows(run_ids):
-    return [row for row in (provenance.find(run_id) for run_id in run_ids) if row]
+    return [row for row in (_answer(run_id) for run_id in run_ids) if row]
 
 
 def first_answers(panel_id):
@@ -190,7 +196,7 @@ def coordinate(args, script, panel_id):
         first = _round(args, script, record, record["members"], critique=False)
         answered = [
             (member, run_id) for member, run_id in zip(record["members"], first)
-            if provenance.find(run_id)
+            if _answer(run_id)
         ]
         if len(answered) < MIN_MEMBERS:
             raise PanelFailed(
@@ -268,7 +274,7 @@ def _members_for(record, round_index):
     if round_index == 0:
         return members
     first = (record.get("rounds") or [[]])[0]
-    return [m for m, run_id in zip(members, first) if provenance.find(run_id)]
+    return [m for m, run_id in zip(members, first) if _answer(run_id)]
 
 
 def render(panel_id):

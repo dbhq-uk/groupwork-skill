@@ -132,9 +132,18 @@ def state(run_id):
     if not runner.valid_run_id(run_id):
         return "unknown", f"'{run_id}' is not a run id", None
     row = provenance.find(run_id)
-    if row:
+    status = provenance.status(row) if row else None
+    if status == "done":
         return "done", "finished; `result` prints the answer and the citation", row
+    if status in ("failed", "timed-out", "stopped"):
+        return "failed", row.get("error") or status, row
     paths = _paths(run_id)
+    if status == "started" and not _running(paths["lock"]):
+        return "failed", (
+            "stopped before it finished: the ledger has its start and nothing "
+            "after, and nothing is running it. It was killed or crashed; "
+            f"{paths['log']} has what it printed, if it ran in the background."
+        ), row
     if paths["failed"].exists():
         reason = paths["failed"].read_text(encoding="utf-8").strip()
         return "failed", reason, None

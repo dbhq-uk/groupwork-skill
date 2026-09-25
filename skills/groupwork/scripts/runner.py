@@ -12,6 +12,9 @@ Every rule below is a failure someone has actually had, not a precaution.
     that cannot reach `high` runs at its ceiling and the record says so.
   - Nothing is retried automatically. A failed adversarial run costs money and
     a retry that silently changes the conditions makes the record meaningless.
+  - Every run is in the ledger, not only the ones that worked: a "started"
+    line before the provider starts, then one saying done, failed, timed out
+    or stopped.
 """
 
 import hashlib
@@ -24,6 +27,7 @@ import uuid
 
 import patterns
 import providers
+from providers.base import RunTimedOut
 
 STATE = pathlib.Path(os.environ.get("GROUPWORK_HOME", pathlib.Path.home() / ".dbhq" / "groupwork"))
 
@@ -169,28 +173,9 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     brief_path.write_bytes(brief_bytes)
     brief_sha256 = hashlib.sha256(brief_bytes).hexdigest()
 
-    started = time.time()
-    try:
-        provider.run(
-            str(brief_path), str(out_path), used_model, used_effort, sandbox,
-            workdir, repo_access=repo_access, log_path=str(log_path),
-            timeout=timeout,
-        )
-    except providers.ProviderError as exc:
-        raise RunFailed(str(exc)) from None
-    finally:
-        ended = time.time()
-
     critique = bool(getattr(brief_text, "answers_shown", 0))
-    text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
-    if not text.strip():
-        raise RunFailed(
-            f"{provider.name} returned nothing. This is a failed run, not a "
-            f"clean review - do not report it as 'no issues found'. The log is "
-            f"at {log_path}."
-        )
-
-    return {
+    started = time.time()
+    record = {
         "id": run_id,
         "pattern": pattern_name,
         "provider": provider.name,
@@ -202,9 +187,9 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         "sandbox": sandbox,
         "repo_access": bool(repo_access),
         "experimental_adapter": bool(caps.get("experimental")),
-        "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
-        "ended_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ended)),
-        "duration_s": round(ended - started, 1),
+        "started_utc": _utc(started),
+        "ended_utc": None,
+        "duration_s": None,
         "subject": subject or "(unstated)",
         "withheld": patterns.withheld(pattern_name, repo_access, critique=critique),
         # Set by brief.build(), which is the only thing that ran the check. A
@@ -215,12 +200,66 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         "brief_path": str(brief_path),
         "brief_sha256": brief_sha256,
         "output_path": str(out_path),
-        "output": text,
         "panel_id": panel_id,
         # 1 when the brief carried a panel's first answers. Read off the brief,
         # which only brief.build() can mark, not passed in by the caller.
         "panel_round": (1 if critique else 0) if panel_id else None,
+        "status": "started",
+        "error": None,
     }
+
+    # A line before the provider starts and another when it ends, whatever the
+    # end. A run that fails, times out or is stopped used to leave a log in
+    # runs/ and nothing in the ledger, so `history` never showed it. If this
+    # process is killed outright, the "started" line is what is left.
+    import provenance  # here, not at the top: provenance reads STATE from here
+    provenance.record(record)
+    try:
+        provider.run(
+            str(brief_path), str(out_path), used_model, used_effort, sandbox,
+            workdir, repo_access=repo_access, log_path=str(log_path),
+            timeout=timeout,
+        )
+    except RunTimedOut as exc:
+        _finish(provenance, record, started, "timed-out", str(exc))
+        raise RunFailed(str(exc)) from None
+    except providers.ProviderError as exc:
+        _finish(provenance, record, started, "failed", str(exc))
+        raise RunFailed(str(exc)) from None
+    except BaseException:
+        _finish(provenance, record, started, "stopped",
+                "groupwork was stopped while the run was in flight")
+        raise
+
+    text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
+    if not text.strip():
+        reason = (
+            f"{provider.name} returned nothing. This is a failed run, not a "
+            f"clean review - do not report it as 'no issues found'. The log is "
+            f"at {log_path}."
+        )
+        _finish(provenance, record, started, "failed", reason)
+        raise RunFailed(reason)
+
+    _finish(provenance, record, started, "done")
+    record["output"] = text
+    return record
+
+
+def _utc(seconds):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(seconds))
+
+
+def _finish(provenance, record, started, status, error=None):
+    """Write the line that says how the run ended."""
+    ended = time.time()
+    record.update(
+        ended_utc=_utc(ended),
+        duration_s=round(ended - started, 1),
+        status=status,
+        error=error,
+    )
+    provenance.record(record)
 
 
 def _pick_model(wanted, supported):

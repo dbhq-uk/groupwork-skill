@@ -18,7 +18,7 @@ import fcntl
 import json
 import pathlib
 
-from runner import STATE
+from runner import STATE, valid_run_id
 
 LEDGER = STATE / "runs.jsonl"
 
@@ -34,11 +34,20 @@ FIELDS = [
     "experimental_adapter", "started_utc", "ended_utc", "duration_s",
     "subject", "withheld", "output_path",
     "leak_check", "no_prior_view", "brief_path", "brief_sha256",
-    "panel_id", "panel_round",
+    "panel_id", "panel_round", "status", "error",
 ]
 
 #: Fields only a panel member has. Every other run leaves them empty.
 PANEL_FIELDS = {"panel_id", "panel_round"}
+
+#: Fields that are empty on a run that finished cleanly.
+OPTIONAL_FIELDS = PANEL_FIELDS | {"error"}
+
+#: How a run ended. A run is written twice: "started" before the provider
+#: starts, then one of the others. A line from before this field existed was
+#: only ever written for a run that worked, so it reads as done. A run found in
+#: runs/ with no line at all reads as "unrecorded".
+STATUSES = ("started", "done", "failed", "timed-out", "stopped")
 
 
 def record(run):
@@ -120,8 +129,16 @@ def _leak_check_line(run):
     return "Leak check not recorded"
 
 
+def status(row):
+    """How a run ended, as far as the ledger says. Old lines read as done."""
+    return row.get("status") or "done"
+
+
 def read_ledger(limit=None):
-    """Past runs, newest last. Returns [] if nothing has been run yet."""
+    """Every line of the ledger, oldest first. Returns [] if nothing has run.
+
+    A run has more than one line. `runs()` gives one row per run.
+    """
     if not LEDGER.exists():
         return []
     rows = []
@@ -138,11 +155,55 @@ def read_ledger(limit=None):
     return rows[-limit:] if limit else rows
 
 
-def find(run_id):
-    """One past run by id, with its output re-read from disk."""
+def runs(limit=None):
+    """One row per run, oldest first, each the latest of its lines.
+
+    The ledger is append-only, so how a run ended is a later line with the
+    same id. Later values win field by field, and a field that only an older
+    line carries is kept.
+    """
+    merged = {}
     for row in read_ledger():
-        if row.get("id") == run_id:
-            path = pathlib.Path(row.get("output_path", ""))
-            row["output"] = path.read_text(encoding="utf-8") if path.exists() else ""
-            return row
-    return None
+        run_id = row.get("id")
+        if not run_id:
+            continue
+        merged.setdefault(run_id, {}).update(row)
+    rows = list(merged.values())
+    return rows[-limit:] if limit else rows
+
+
+def find(run_id):
+    """One past run by id, with its output re-read from disk.
+
+    A run with no line in the ledger, from before failures were recorded, is
+    rebuilt from what it left in runs/, so `show` can still say what there is.
+    """
+    row = next((r for r in runs() if r.get("id") == run_id), None)
+    if row is None:
+        row = _from_files(run_id)
+        if row is None:
+            return None
+    path = pathlib.Path(row.get("output_path") or "")
+    row["output"] = (
+        path.read_text(encoding="utf-8") if path.is_file() else ""
+    )
+    return row
+
+
+def _from_files(run_id):
+    """A bare row for a run that is in runs/ but not in the ledger."""
+    runs_dir = LEDGER.parent / "runs"
+    if not valid_run_id(run_id) or not runs_dir.is_dir():
+        return None
+    files = {
+        "brief_path": runs_dir / f"{run_id}.brief.md",
+        "output_path": runs_dir / f"{run_id}.md",
+        "log_path": runs_dir / f"{run_id}.log",
+    }
+    if not any(path.exists() for path in files.values()):
+        return None
+    row = {"id": run_id, "status": "unrecorded"}
+    for key, path in files.items():
+        if path.exists():
+            row[key] = str(path)
+    return row
