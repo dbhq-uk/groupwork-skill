@@ -70,6 +70,9 @@ PATTERNS = {
         "repo_access": True,
         "blind": True,
         "withholds": "our verdict - it gets the constraints and the diff, and rules on each",
+        # A ruling needs something to rule against. Without constraints the
+        # brief said "(none stated)" and the run still went out at high effort.
+        "needs_constraints": True,
         "template": "verify.md",
     },
     "panel": {

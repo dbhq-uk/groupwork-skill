@@ -190,6 +190,13 @@ def build(pattern_name, subject, context="", question="", our_view=None,
             f"draft conclusion to check for it, or --no-prior-view if no view has "
             f"been formed yet."
         )
+    if spec.get("needs_constraints") and not constraints.strip():
+        raise BriefError(
+            f"'{pattern_name}' rules on work against stated constraints, and "
+            f"none were given, so it would have nothing to rule on. Pass "
+            f"--constraints with what the work has to meet: the acceptance "
+            f"criteria, the spec, the rules it must not break."
+        )
     if assert_withholds and len(_words(assert_withholds)) < SHINGLE:
         raise BriefError(
             f"--assert-withholds is too short to check: give the draft conclusion "

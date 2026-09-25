@@ -94,6 +94,18 @@ Pass `--no-prior-view` only when you have not formed a view yet. The citation
 then says the leak check did not run and that you declared no view, rather
 than implying a check that never happened.
 
+**`verify` needs `--constraints`, and is refused without them.** It rules on
+the work against each constraint, so with none it has nothing to rule on. Give
+it what the work has to meet: the acceptance criteria, the spec, the rules it
+must not break.
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py run verify --background \
+  --subject "the diff on this branch: git diff main...HEAD" \
+  --constraints "No new dependencies. The public API is unchanged. Every new flag is in the README." \
+  --no-prior-view
+```
+
 Use `--dry-run` to read the brief before spending on it.
 
 Runs are slow. The time limit follows the effort: 20 minutes at `high`, 30 at

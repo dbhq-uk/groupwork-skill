@@ -447,7 +447,8 @@ def test_stopping_groupwork_stops_the_run_it_started(sig, tmp_path):
     script = pathlib.Path(runner.__file__).with_name("groupwork.py")
     proc = subprocess.Popen(
         [sys.executable, str(script), "run", "verify", "--subject", "a thing",
-         "--no-prior-view", "--provider", "codex", "--timeout", "60"],
+         "--constraints", "It builds.", "--no-prior-view", "--provider", "codex",
+         "--timeout", "60"],
         env=env, cwd=str(tmp_path),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
@@ -487,6 +488,16 @@ def test_a_red_team_timeout_is_reported_as_a_timeout(tmp_path, monkeypatch):
                    cwd=str(tmp_path), timeout=1)
     assert "timed out" in str(caught.value)
     assert "--repo-access" not in str(caught.value)
+
+
+def test_verify_without_constraints_is_refused_before_any_provider_is_called(capsys):
+    Stub.last_call = {}
+    code = groupwork.main(["run", "verify", "--subject", "the diff",
+                           "--no-prior-view", "--provider", "stub"])
+    assert code == 2
+    assert "--constraints" in capsys.readouterr().err
+    assert Stub.last_call == {}, "the provider was called anyway"
+    assert provenance.runs() == [], "a refused brief must not reach the ledger"
 
 
 def test_run_timeout_reaches_the_provider():

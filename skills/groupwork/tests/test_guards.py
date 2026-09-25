@@ -21,6 +21,13 @@ DRAFT_VIEW = (
 )
 
 
+def needs(pattern):
+    """What a pattern must be given beyond a subject to build at all."""
+    if patterns.PATTERNS[pattern].get("needs_constraints"):
+        return {"constraints": "It must not change the public API."}
+    return {}
+
+
 # --- Rule 1: a blind pattern never carries our conclusion --------------------
 
 @pytest.mark.parametrize("pattern", sorted(patterns.BLIND))
@@ -44,6 +51,7 @@ def test_blind_patterns_catch_a_leak_through_context(pattern):
             subject="a thing",
             context=f"Background. {DRAFT_VIEW} Some more background.",
             assert_withholds=DRAFT_VIEW,
+            **needs(pattern),
         )
 
 
@@ -106,7 +114,8 @@ def test_no_template_is_mistaken_for_a_leak(template):
     view = (TEMPLATES / template).read_text(encoding="utf-8")
     for pattern in sorted(patterns.BLIND):
         brief.build(pattern, subject="the plan in docs/plan.md",
-                    context="It was written last week.", assert_withholds=view)
+                    context="It was written last week.", assert_withholds=view,
+                    **needs(pattern))
     brief.build("red-team", subject="x", context="y",
                 assert_withholds=brief.SOLE_REVIEWER + brief.OUTPUT_CONTRACT)
 
@@ -154,6 +163,21 @@ def test_a_panel_answer_that_reaches_our_view_is_not_a_leak():
     assert text.answers_shown == 2
 
 
+def test_verify_without_constraints_is_refused():
+    """It rules on work against constraints. With none it has nothing to rule on."""
+    for constraints in ("", "   \n"):
+        with pytest.raises(brief.BriefError, match="--constraints"):
+            brief.build("verify", subject="the diff on this branch",
+                        no_prior_view=True, constraints=constraints)
+
+
+def test_verify_with_constraints_carries_them():
+    text = brief.build("verify", subject="the diff", no_prior_view=True,
+                       constraints="No new dependencies.")
+    assert "No new dependencies." in text
+    assert "(none stated)" not in text
+
+
 # --- Rule 3: no brief contains groupwork's own trigger phrases ----------------
 
 @pytest.mark.parametrize("template", sorted(p.name for p in TEMPLATES.glob("*.md")))
@@ -174,7 +198,7 @@ def test_templates_contain_no_trigger_phrases(template):
 def test_build_rejects_a_trigger_phrase_in_the_subject():
     with pytest.raises(brief.BriefError, match="re-trigger"):
         brief.build("verify", subject="give me a second opinion on the diff",
-                    no_prior_view=True)
+                    no_prior_view=True, **needs("verify"))
 
 
 def test_a_critique_is_never_refused_for_words_in_an_earlier_answer():
@@ -293,6 +317,6 @@ def test_every_pattern_builds():
     """Every template's placeholders are ones build() actually supplies."""
     for name in patterns.PATTERNS:
         text = brief.build(name, subject="a subject", context="some context",
-                           no_prior_view=name in patterns.BLIND)
+                           no_prior_view=name in patterns.BLIND, **needs(name))
         assert text.strip()
         assert "{" not in text.replace("{subject}", ""), f"{name} left a placeholder"

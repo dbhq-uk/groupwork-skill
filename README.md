@@ -126,6 +126,13 @@ python3 scripts/groupwork.py run second-opinion \
   --subject "the recommendation in docs/research/foo.md" \
   --assert-withholds "$MY_DRAFT_CONCLUSION"
 
+# rule on finished work against what it has to meet. verify is refused
+# without --constraints, because with none it has nothing to rule on
+python3 scripts/groupwork.py run verify --background \
+  --subject "the diff on this branch: git diff main...HEAD" \
+  --constraints "No new dependencies. The public API is unchanged." \
+  --no-prior-view
+
 # the same question to two or more models at once, each answering alone
 python3 scripts/groupwork.py panel --background --subject "queue or cron" \
   --no-prior-view

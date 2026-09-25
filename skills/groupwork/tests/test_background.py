@@ -155,6 +155,20 @@ def test_a_refused_brief_is_refused_at_once_not_in_the_background(world):
     )
 
 
+def test_verify_without_constraints_is_refused_before_anything_starts(world):
+    tmp_path, env = world
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "run", "verify", "--subject", "a thing",
+         "--no-prior-view", "--provider", "codex", "--background"],
+        env=env, cwd=str(tmp_path), capture_output=True, text=True, timeout=30,
+    )
+    assert done.returncode == 2
+    assert "--constraints" in done.stderr
+    assert done.stdout.strip() == "", "a run id was handed out for a refused brief"
+    time.sleep(0.5)
+    assert not (tmp_path / "started").exists(), "the provider was started anyway"
+
+
 def test_status_of_an_unknown_run_is_an_error(world, capsys):
     assert groupwork.main(["status", "20260101T000000Z-abcdef"]) == 1
     assert groupwork.main(["result", "20260101T000000Z-abcdef"]) == 1
