@@ -188,10 +188,13 @@ for example), the session fails before it begins and groupwork says so, rather
 than running with the repository readable. opencode has no sandbox, and
 by default it allows most tools, including edits, bash and web fetches. So
 groupwork passes it an inline config (`OPENCODE_CONFIG_CONTENT`) that denies
-edits, bash apart from read-only `git` subcommands, web fetch and search,
-sub-agents, skills and directories outside the working one. That is a
-tool-permission deny that opencode enforces itself, not a sandbox. The citation
-names the provider, so a reader can weigh the difference.
+edits, web fetch and search, sub-agents, skills and directories outside the
+working one. Out of bash it allows five exact commands with no argument -
+`git status`, `git log`, `git diff`, `git show` and `git ls-files` - because a
+git flag is how a command gets out of the working directory, and a pattern that
+withholds the repository gets no bash at all. That is a tool-permission deny
+that opencode enforces itself, not a sandbox. The citation names the provider,
+so a reader can weigh the difference.
 
 A `panel` runs one member per ready provider, or two on the only one that is
 ready. Answers from different model families are worth more than two from one,

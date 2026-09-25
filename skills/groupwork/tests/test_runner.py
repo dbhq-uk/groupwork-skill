@@ -4,10 +4,12 @@ Everything here runs against a stub provider, so the suite needs no CLI
 installed, no credentials and no network.
 """
 
+import fnmatch
 import hashlib
 import json
 import os
 import pathlib
+import re
 import signal
 import subprocess
 import sys
@@ -21,6 +23,7 @@ import patterns
 import provenance
 import providers
 import runner
+from providers import opencode
 from conftest import FAKE_CLI, install_fake_cli
 from providers.base import Provider
 
@@ -202,14 +205,93 @@ def test_the_opencode_child_is_denied_edit_bash_and_the_web(
     argv, config = _opencode_child(tmp_path, monkeypatch, pattern)
     assert "--agent build" in argv
     assert "--auto" not in argv
+    withheld = not patterns.get(pattern)["repo_access"]
     for rules in (config["permission"], config["agent"]["build"]["permission"]):
         for tool in ("edit", "webfetch", "websearch", "task", "skill",
                      "external_directory"):
             assert rules[tool] == "deny", tool
         bash = rules["bash"]
+        if withheld:
+            # Nothing to shell out for in an empty directory, so no allowlist
+            # to get out through. See test_bash_is_denied_outright_... below.
+            assert bash == "deny"
+            continue
         assert list(bash)[0] == "*" and bash["*"] == "deny"
         allowed = [p for p, action in bash.items() if action == "allow"]
         assert allowed and all(p.startswith("git ") for p in allowed)
+
+
+# opencode matches a bash rule against the whole command string, and the last
+# match wins. This mirrors that so a test can say what a command resolves to.
+# The behaviour it mirrors was measured against opencode 1.18.31 with
+# `opencode debug agent build --pure --tool bash`, which runs the real
+# permission check and makes no model call.
+def _resolve(command, rules):
+    action = "deny"
+    for pattern, verdict in rules.items():
+        if fnmatch.fnmatchcase(command, pattern):
+            action = verdict
+    return action
+
+
+# Every one of these was allowed until 25 Sep 2026, because the rules read
+# `git diff*` and a trailing wildcard lets any flag ride along.
+ESCAPES = [
+    # Reads any two paths on disk, files or whole directory trees, from a
+    # working directory that is supposed to hold nothing.
+    "git diff --no-index /dev/null /outside/evidence.md",
+    # Writes a file, with `edit` denied. --output is a diff option, so it is
+    # on log, show and blame too.
+    "git diff --no-index --output=/outside/written.txt /dev/null /etc/hostname",
+    # Runs the named program as git's pager, which defeats the bash deny
+    # entirely rather than merely stepping around it.
+    "git grep --no-index -Osh hello",
+    # Not an escape by itself, but the form that proves the patterns are exact.
+    "git log --oneline",
+]
+
+
+@pytest.mark.parametrize("command", ESCAPES)
+def test_an_allowed_git_command_cannot_carry_a_flag_or_a_path(command):
+    """A flag on an allowed git command was the way out of the empty directory.
+
+    Denylisting the flags does not hold: --no-index, --output and -O were three
+    of them found in one sitting. An exact pattern cannot carry a flag or a
+    path at all, which is the only version of this allowlist that needs no
+    denylist behind it.
+    """
+    assert _resolve(command, opencode.READ_ONLY_PERMISSIONS["bash"]) == "deny"
+
+
+def test_the_allowed_git_commands_still_work():
+    """The narrowing has to leave something usable, or it is just a bash deny."""
+    for command in ("git status", "git log", "git diff", "git show",
+                    "git ls-files"):
+        assert _resolve(command, opencode.READ_ONLY_PERMISSIONS["bash"]) == "allow"
+
+
+def test_every_allowed_bash_pattern_is_an_exact_argument_free_git_command():
+    """The property the escapes turn on, asserted directly rather than by example."""
+    for pattern, action in opencode.READ_ONLY_PERMISSIONS["bash"].items():
+        if action != "allow":
+            continue
+        assert re.fullmatch(r"git [a-z-]+", pattern), pattern
+
+
+def test_bash_is_denied_outright_when_the_repository_is_withheld():
+    """red-team's empty directory is the pattern, so a shell there is all risk.
+
+    It cannot read anything worth reading, and every allowed command is another
+    chance to find the next --no-index.
+    """
+    withheld = json.loads(
+        opencode.read_only_env({}, repo_access=False)["OPENCODE_CONFIG_CONTENT"])
+    for rules in (withheld["permission"],
+                  withheld["agent"][opencode.AGENT]["permission"]):
+        assert rules["bash"] == "deny"
+    given = json.loads(
+        opencode.read_only_env({}, repo_access=True)["OPENCODE_CONFIG_CONTENT"])
+    assert given["permission"]["bash"]["*"] == "deny"
 
 
 def test_the_opencode_deny_keeps_the_callers_other_config(tmp_path, monkeypatch):

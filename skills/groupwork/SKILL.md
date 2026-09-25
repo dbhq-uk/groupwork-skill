@@ -226,9 +226,12 @@ its sandbox on the machine, the session fails before it begins and groupwork
 says so; `--repo-access` is the deliberate alternative, and the citation then
 says the repository was open to it. opencode has no sandbox, and
 most of its tools are allowed by default. groupwork passes it deny rules for
-file edits, bash (apart from read-only `git`), web fetch and search, sub-agents,
-skills and directories outside the working one. opencode enforces those itself,
-which is weaker than a kernel sandbox. The citation names the provider.
+file edits, web fetch and search, sub-agents, skills and directories outside the
+working one, and allows out of bash only `git status`, `git log`, `git diff`,
+`git show` and `git ls-files`, each with no argument, since a git flag is how a
+command leaves the working directory. A pattern that withholds the repository
+gets no bash at all. opencode enforces those itself, which is weaker than a
+kernel sandbox. The citation names the provider.
 
 **Every pattern asks for `gpt-6-astra` at `high` effort.** That model needs
 Codex CLI 0.153.0 or newer and an account with access to it. On an older Codex,

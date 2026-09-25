@@ -14,19 +14,19 @@ run bash and fetch from the web. Leaving out `--auto` changes nothing about
 that: `--auto` only approves what would otherwise ask.
 
 So every run passes an inline config in `OPENCODE_CONFIG_CONTENT` that denies
-`edit`, `bash` (apart from read-only `git` subcommands), `webfetch`,
-`websearch`, `task`, `skill` and `external_directory`. Inline config outranks
+`edit`, `webfetch`, `websearch`, `task`, `skill` and `external_directory`, and
+allows only five exact, argument-free `git` commands out of `bash`. A pattern
+that withholds the repository gets no `bash` at all. Inline config outranks
 project and user config. The same rules are set on the `build` agent as well as
 globally, because an agent's own permissions are applied after the global ones
 and would otherwise win, and the run names `--agent build` so it is that agent
 that runs.
 
 That is a tool-permission deny enforced by opencode itself, not a sandbox. A
-bug in opencode's permission checks, or an allowed `git` subcommand given a flag
-that writes, is not contained the way the kernel contains Codex. capabilities()
-offers only read-only, and the provenance record names the provider, so a
-reader can weigh the difference. What it must never do is claim the same
-guarantee Codex gives.
+bug in opencode's permission checks is not contained the way the kernel
+contains Codex. capabilities() offers only read-only, and the provenance record
+names the provider, so a reader can weigh the difference. What it must never do
+is claim the same guarantee Codex gives.
 
 Signing in is per model provider, not per CLI. opencode with no credential at
 all is not ready, and opencode signed in to Anthropic only cannot run
@@ -43,19 +43,34 @@ import subprocess
 
 from .base import Provider, ProviderError, RunTimedOut, spawn
 
-#: What a read-only review may do, as opencode permission rules. Last match
-#: wins, so the blanket bash deny comes first and the git reads after it.
+#: The only shell commands a read-only review may run. Exact patterns, so no
+#: flag and no path can ride along, and last match wins so the blanket deny
+#: comes first.
+#:
+#: Each of these read `git <subcommand>*` until 25 Sep 2026, and a trailing
+#: wildcard leaves everything after the subcommand unchecked. Three git flags
+#: then walked straight out of the working directory, measured against opencode
+#: 1.18.31 with this very config: `git diff --no-index <a> <b>` prints any two
+#: paths on disk, files or whole trees; `--output=<path>` writes a file though
+#: `edit` is denied, and it is a diff option so it is on log, show and blame
+#: too; and `git grep -O<cmd>` runs <cmd> as git's pager, which defeats the
+#: bash deny rather than stepping around it. On red-team that empty directory
+#: is the whole pattern, so the counterpart could read the repository it was
+#: meant to be starved of and the citation still said the evidence was withheld.
+#:
+#: Denylisting the flags does not hold - those three took ten minutes to find,
+#: and git has more. An exact, argument-free command cannot carry one at all.
+#: `git blame` and `git grep` are gone with the wildcards: both need an
+#: argument to do anything, and grep is the one that launches a program.
 READ_ONLY_PERMISSIONS = {
     "edit": "deny",
     "bash": {
         "*": "deny",
-        "git status*": "allow",
-        "git log*": "allow",
-        "git diff*": "allow",
-        "git show*": "allow",
-        "git blame*": "allow",
-        "git ls-files*": "allow",
-        "git grep*": "allow",
+        "git status": "allow",
+        "git log": "allow",
+        "git diff": "allow",
+        "git show": "allow",
+        "git ls-files": "allow",
     },
     "webfetch": "deny",
     "websearch": "deny",
@@ -71,7 +86,20 @@ READ_ONLY_PERMISSIONS = {
 AGENT = "build"
 
 
-def read_only_env(base=None):
+def permissions(repo_access=True):
+    """The permission rules for a run, given what it is allowed to read.
+
+    A pattern that withholds the repository runs in a directory with nothing in
+    it, so a shell there can read nothing worth reading and is only a way back
+    out. bash is denied outright rather than allowlisted, which also means
+    red-team never depends on the allowlist above being airtight.
+    """
+    rules = dict(READ_ONLY_PERMISSIONS)
+    rules["bash"] = dict(READ_ONLY_PERMISSIONS["bash"]) if repo_access else "deny"
+    return rules
+
+
+def read_only_env(base=None, repo_access=True):
     """The child's environment, carrying the read-only permission config.
 
     Anything else already in a caller's own OPENCODE_CONFIG_CONTENT is kept. The
@@ -84,10 +112,11 @@ def read_only_env(base=None):
         config = {}
     if not isinstance(config, dict):
         config = {}
-    config["permission"] = READ_ONLY_PERMISSIONS
+    rules = permissions(repo_access)
+    config["permission"] = rules
     agents = config.get("agent") if isinstance(config.get("agent"), dict) else {}
     agent = agents.get(AGENT) if isinstance(agents.get(AGENT), dict) else {}
-    agent["permission"] = READ_ONLY_PERMISSIONS
+    agent["permission"] = rules
     agents[AGENT] = agent
     config["agent"] = agents
     env["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
@@ -234,7 +263,8 @@ class Opencode(Provider):
             try:
                 returncode = spawn(
                     self.name, argv, stdin=stdin, stdout=out, stderr=log,
-                    cwd=cwd, timeout=timeout, env=read_only_env(),
+                    cwd=cwd, timeout=timeout,
+                    env=read_only_env(repo_access=repo_access),
                 )
             except RunTimedOut as exc:
                 raise RunTimedOut(
