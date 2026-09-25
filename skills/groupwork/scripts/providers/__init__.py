@@ -39,6 +39,14 @@ def get(name=None, config=None):
     return cls(config)
 
 
+def host():
+    """The registered provider whose CLI groupwork is running inside, or None."""
+    for name, cls in REGISTRY.items():
+        if cls.is_host():
+            return name
+    return None
+
+
 def available(config=None):
     """Every provider that is installed and authenticated, with its version.
 

@@ -80,8 +80,9 @@ Python 3.9 or newer, standard library only. At least one provider CLI installed
 State lives in `~/.dbhq/groupwork/` (mode 700): the brief, the raw output and
 the log of each run, and `runs.jsonl`, which gets a line when a run starts and
 another when it ends, whether it worked, failed, timed out or was stopped. The
-file is only ever appended to. No credentials are stored; every provider
-authenticates itself.
+file is only ever appended to. `config.json` there, if you create one, holds a
+standing choice of model per provider. No credentials are stored; every
+provider authenticates itself.
 
 ## Why the withholding matters
 
@@ -162,6 +163,14 @@ billing, after groupwork has reported it dead.
 provider, so it runs a pattern's model only when it can reach it. Otherwise it
 uses the default model in opencode's own configuration, and with no default the
 run asks for `--model`.
+
+Every pattern asks for `gpt-6-astra` at `high` effort. That model needs Codex
+CLI 0.153.0 or newer and an account with access, and on an older Codex a run is
+refused before it starts, naming both. To use another model by default, set
+`GROUPWORK_CODEX_MODEL=gpt-5.6-sol`, or put `{"model": {"codex": "gpt-5.6-sol"}}`
+in `~/.dbhq/groupwork/config.json`. Each provider has its own setting.
+`--model` beats both and the environment beats the file. The citation names the
+model that ran.
 
 **GitHub Copilot is not a provider yet.** An adapter for it is in the source,
 written from Copilot's documentation, but it has never been run against the real

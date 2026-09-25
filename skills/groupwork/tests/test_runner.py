@@ -21,7 +21,7 @@ import patterns
 import provenance
 import providers
 import runner
-from conftest import install_fake_cli
+from conftest import FAKE_CLI, install_fake_cli
 from providers.base import Provider
 
 
@@ -320,6 +320,105 @@ def test_a_model_named_with_model_is_used_as_given(tmp_path, monkeypatch):
     assert "-m google/gemini-3-pro" in argv
 
 
+# --- The model: overridable, checked against the CLI, named on failure -------
+
+def test_an_override_in_the_environment_changes_the_model_and_the_citation(monkeypatch):
+    monkeypatch.setenv("GROUPWORK_STUB_MODEL", "gpt-5.6-sol")
+    result = go()
+    assert Stub.last_call["model"] == "gpt-5.6-sol"
+    assert provenance.runs()[-1]["model"] == "gpt-5.6-sol"
+    assert "`gpt-5.6-sol` via stub" in provenance.citation(result)
+
+
+def test_an_override_in_the_config_file_changes_the_model(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"model": {"stub": "gpt-5.6-sol"}}))
+    assert go()["model"] == "gpt-5.6-sol"
+    assert Stub.last_call["model"] == "gpt-5.6-sol"
+
+
+def test_the_environment_beats_the_file_and_model_beats_both(tmp_path, monkeypatch):
+    (tmp_path / "config.json").write_text(json.dumps({"model": {"stub": "from-file"}}))
+    monkeypatch.setenv("GROUPWORK_STUB_MODEL", "from-env")
+    assert go()["model"] == "from-env"
+    assert go(model="from-flag")["model"] == "from-flag"
+
+
+def test_an_override_for_another_provider_changes_nothing(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"model": {"codex": "gpt-5.6-sol"}}))
+    assert go()["model"] == "gpt-6-astra"
+
+
+def test_a_config_file_that_cannot_be_read_refuses_the_run(tmp_path):
+    """Ignoring it would run the very model the user set it to avoid."""
+    (tmp_path / "config.json").write_text("{not json")
+    with pytest.raises(runner.RunFailed, match="config.json"):
+        go()
+    assert provenance.runs() == []
+
+
+def _codex_at(tmp_path, monkeypatch, version, script=FAKE_CLI):
+    script = script.replace('echo "fake-cli 1.0"', f'echo "{version}"')
+    install_fake_cli(tmp_path / "bin", "codex", script)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+
+
+@pytest.mark.parametrize("named", [None, "gpt-6-astra"])
+def test_astra_on_a_codex_below_the_floor_is_refused(named, tmp_path, monkeypatch):
+    """Older CLIs cannot see the model, and the run failed with only "exited 1"."""
+    _codex_at(tmp_path, monkeypatch, "codex-cli 0.152.9")
+    with pytest.raises(runner.RunFailed) as caught:
+        runner.run("red-team", "a brief", provider_name="codex",
+                   cwd=str(tmp_path), model=named)
+    assert "gpt-6-astra" in str(caught.value)
+    assert "0.153.0" in str(caught.value)
+    assert provenance.runs() == [], "a run that could not start is not in history"
+
+
+def test_astra_on_a_codex_at_the_floor_runs(tmp_path, monkeypatch):
+    _codex_at(tmp_path, monkeypatch, "codex-cli 0.153.0")
+    result = runner.run("verify", "a brief", provider_name="codex", cwd=str(tmp_path))
+    assert result["model"] == "gpt-6-astra"
+
+
+def test_an_old_codex_runs_the_model_it_was_told_to_use(tmp_path, monkeypatch):
+    _codex_at(tmp_path, monkeypatch, "codex-cli 0.140.0")
+    monkeypatch.setenv("GROUPWORK_CODEX_MODEL", "gpt-5.6-sol")
+    result = runner.run("verify", "a brief", provider_name="codex", cwd=str(tmp_path))
+    assert result["model"] == "gpt-5.6-sol"
+
+
+def test_a_failed_run_names_the_model_it_asked_for(tmp_path, monkeypatch):
+    failing = FAKE_CLI.replace(
+        "cat > /dev/null", 'cat > /dev/null\necho "no such model" >&2\nexit 1')
+    _codex_at(tmp_path, monkeypatch, "codex-cli 0.154.0", failing)
+    with pytest.raises(runner.RunFailed) as caught:
+        runner.run("verify", "a brief", provider_name="codex", cwd=str(tmp_path))
+    assert "exited 1" in str(caught.value)
+    assert "gpt-6-astra" in str(caught.value)
+    assert "gpt-6-astra" in provenance.runs()[-1]["error"]
+
+
+def _dry_run(provider):
+    return groupwork.main(["run", "second-opinion", "--subject", "a thing",
+                           "--no-prior-view", "--provider", provider, "--dry-run"])
+
+
+def test_running_inside_codex_says_the_counterpart_is_the_same_family(
+        capsys, monkeypatch):
+    monkeypatch.setenv("CODEX_THREAD_ID", "a-thread")
+    assert providers.host() == "codex"
+    assert _dry_run("codex") == 0
+    assert "same family" in capsys.readouterr().err
+    assert _dry_run("opencode") == 0
+    assert "same family" not in capsys.readouterr().err
+
+
+def test_outside_codex_there_is_no_family_note(capsys):
+    assert providers.host() is None
+    assert _dry_run("codex") == 0
+    assert "same family" not in capsys.readouterr().err
+
+
 def test_unknown_provider_names_the_real_ones():
     with pytest.raises(ValueError, match="Available"):
         providers.get("nonesuch")
@@ -370,7 +469,7 @@ def test_other_patterns_run_in_the_repo():
 
 # A fake codex that answers with where it was started and what it was given.
 FAKE_CODEX_ECHO = """#!/bin/bash
-if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
 out=""
 prev=""
 for arg in "$@"; do
@@ -426,7 +525,7 @@ def test_red_team_given_the_repo_uses_the_sandbox_flag(tmp_path, monkeypatch):
 
 
 FAKE_CODEX_NO_SANDBOX = """#!/bin/bash
-if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
 cat > /dev/null
 echo "Error: Fatal error: Failed to initialize session: fs sandbox helper failed with status exit status: 1: bwrap: setting up uid map: Permission denied" >&2
 exit 1
@@ -565,7 +664,7 @@ def test_stopping_groupwork_stops_the_run_it_started(sig, tmp_path):
 
 
 FAKE_CODEX_SLOW_WITH_BWRAP_NOISE = """#!/bin/bash
-if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
 cat > /dev/null
 echo "bwrap: a sandboxed command failed partway through the run" >&2
 sleep 300
@@ -779,7 +878,7 @@ def test_history_is_empty_before_anything_runs():
 # --- Every run is in the ledger, not only the ones that worked ---------------
 
 FAKE_CODEX_EXIT_1 = """#!/bin/bash
-if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
 cat > /dev/null
 echo "the model refused" >&2
 exit 1

@@ -72,6 +72,20 @@ def _fail(args, message, code):
     return code
 
 
+def _warn_if_same_family(args, answering, flag):
+    """Say so when the counterpart is the model family of the agent asking.
+
+    Not a refusal: sometimes it is the only provider there is. But two models
+    of one family tend to miss the same things, so the user should know.
+    """
+    host = providers.host()
+    if host and host in answering and not args.run_id:
+        print(f"Note: groupwork is running inside {host}, and {host} is "
+              f"answering too. A model of the same family tends to miss the "
+              f"same things, so this is a weaker second look. Use {flag} to "
+              f"name another provider if one is ready.", file=sys.stderr)
+
+
 def cmd_run(args):
     if args.pattern == "panel" and not (args.panel_id and args.run_id):
         return _fail(args, "Brief refused: a panel runs through `groupwork.py "
@@ -93,6 +107,8 @@ def cmd_run(args):
         )
     except (brief.BriefError, ValueError, OSError) as exc:
         return _fail(args, f"Brief refused: {exc}", 2)
+
+    _warn_if_same_family(args, {args.provider or providers.DEFAULT}, "--provider")
 
     if args.dry_run:
         print(text)
@@ -157,10 +173,12 @@ def cmd_panel(args):
             assert_withholds=args.assert_withholds,
             no_prior_view=args.no_prior_view,
         )
+        answering = set(providers.REGISTRY)
         if args.members:
-            panel.parse_members(args.members)
+            answering = {m["provider"] for m in panel.parse_members(args.members)}
     except (brief.BriefError, ValueError) as exc:
         return _fail(args, f"Panel refused: {exc}", 2)
+    _warn_if_same_family(args, answering, "--members")
 
     script = pathlib.Path(__file__).resolve()
     if args.background and not args.run_id:

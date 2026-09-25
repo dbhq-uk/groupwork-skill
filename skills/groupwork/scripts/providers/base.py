@@ -156,6 +156,15 @@ class Provider:
     def __init__(self, config=None):
         self.config = config or {}
 
+    @classmethod
+    def is_host(cls):
+        """True when groupwork itself is running inside this provider's CLI.
+
+        Optional. It lets groupwork warn that the counterpart is the same model
+        family as the agent asking, which is the weakest kind of second look.
+        """
+        return False
+
     # --- contract -----------------------------------------------------------
 
     def probe(self):
@@ -168,11 +177,16 @@ class Provider:
         `default_model` is the model the CLI uses when none is named, where the
         provider can say which. The runner falls back to it, and to nothing
         else, when the pattern's model is not in `models`.
+
+        `unreachable` maps a model to the reason this installation cannot run
+        it. The runner refuses a run that asks for one, before it starts,
+        whether the model came from the pattern or was named by the user.
         """
         return {
             "provider": self.name,
             "models": list(self.models),
             "default_model": None,
+            "unreachable": {},
             "efforts": list(self.efforts),
             "sandboxes": list(self.sandboxes),
             "can_withhold_repo": self.can_withhold_repo,

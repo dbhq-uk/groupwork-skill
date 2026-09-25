@@ -31,9 +31,19 @@ explicit alternative, rather than quietly running with the repository readable.
 """
 
 import os
+import re
 import subprocess
 
 from .base import Provider, ProviderError, RunTimedOut, spawn
+
+#: Models this CLI can run only from a given version up. The model list is
+#: gated by client version on OpenAI's side, so an older CLI does not report
+#: the model as unknown: the run just fails.
+MODEL_FLOOR = {"gpt-6-astra": (0, 153, 0)}
+
+#: Set in the environment of every command Codex runs for its agent, so
+#: groupwork can tell when Codex is the host.
+HOST_ENV = ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED")
 
 #: Environment variables `codex exec` takes a credential from. `codex login
 #: status` does not look at them, so a key given this way would otherwise read
@@ -80,8 +90,21 @@ class Codex(Provider):
     sandboxes = ["read-only", "workspace-write", "danger-full-access"]
     can_withhold_repo = True
 
+    def __init__(self, config=None):
+        super().__init__(config)
+        self._seen_version = None
+
+    @classmethod
+    def is_host(cls):
+        return any(os.environ.get(name) for name in HOST_ENV)
+
     def install_hint(self):
         return "Install the Codex CLI and run 'codex login'."
+
+    def capabilities(self):
+        caps = super().capabilities()
+        caps["unreachable"] = too_old_for(self._seen_version)
+        return caps
 
     def probe(self):
         """Installed, and logged in. `--version` alone answers only the first.
@@ -91,6 +114,7 @@ class Codex(Provider):
         """
         self._which("codex")
         version = self._version(["codex", "--version"])
+        self._seen_version = version
         if any(os.environ.get(name) for name in AUTH_ENV):
             return version
         done = self._call(["codex", "login", "status"])
@@ -154,6 +178,29 @@ class Codex(Provider):
                     "say so. The log has Codex's own error."
                 ) from None
             raise
+
+
+def too_old_for(version):
+    """{model: reason} for each model this CLI version is too old to run.
+
+    A version string it cannot read blocks nothing: the run then fails, if it
+    fails, with the model named in the error.
+    """
+    found = re.search(r"(\d+)\.(\d+)\.(\d+)", version or "")
+    if not found:
+        return {}
+    have = tuple(int(part) for part in found.groups())
+    reasons = {}
+    for model, floor in MODEL_FLOOR.items():
+        if have < floor:
+            need = ".".join(str(part) for part in floor)
+            reasons[model] = (
+                f"codex: {model} needs Codex CLI {need} or newer, and this is "
+                f"{version}. Older versions cannot see the model at all. Update "
+                f"Codex, or choose another model with --model or "
+                f"GROUPWORK_CODEX_MODEL."
+            )
+    return reasons
 
 
 def _sandbox_failed_to_start(log_path):

@@ -1,8 +1,21 @@
+import os
 import pathlib
 import sys
 
+import pytest
+
 SCRIPTS = pathlib.Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+
+
+@pytest.fixture(autouse=True)
+def _no_outside_choices(monkeypatch):
+    """A model override or a Codex host in the caller's shell must not leak in."""
+    for name in list(os.environ):
+        if name.startswith("GROUPWORK_") and name.endswith("_MODEL"):
+            monkeypatch.delenv(name)
+    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED"):
+        monkeypatch.delenv(name, raising=False)
 
 
 # A stand-in for a provider CLI, so the real adapters can be driven end to end
