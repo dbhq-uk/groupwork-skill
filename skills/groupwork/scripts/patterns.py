@@ -180,16 +180,23 @@ def withheld(name, repo_access, critique=False):
 
 
 def resolve_effort(wanted, supported):
-    """Pick the highest effort a provider can actually reach.
+    """Pick the effort a provider can reach that is nearest the one asked for.
 
-    Returns (effort, downgraded). Silently running at a lower effort than the
-    pattern asked for would make the provenance record a lie, so the caller is
-    told and the record names what was really used.
+    The highest level at or below `wanted`, so a run never costs more than was
+    asked for. Only when the provider has nothing that low does it go up, to
+    its lowest level.
+
+    Returns (effort, downgraded), where downgraded means lower than asked.
+    Silently running at a different effort than the pattern asked for would
+    make the provenance record a lie, so the record names what was really used
+    and the citation says so whenever it differs.
     """
     if wanted in supported:
         return wanted, False
     ranked = [e for e in EFFORTS if e in supported]
     if not ranked:
         raise ValueError("provider supports no known effort level")
-    ceiling = ranked[-1]
-    return ceiling, True
+    below = [e for e in ranked if EFFORTS.index(e) < EFFORTS.index(wanted)]
+    if below:
+        return below[-1], True
+    return ranked[0], False

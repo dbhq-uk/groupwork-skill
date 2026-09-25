@@ -157,7 +157,7 @@ billing, after groupwork has reported it dead.
 | Provider | Notes |
 |---|---|
 | `codex` | The default. Real kernel-enforced `--sandbox read-only`. Verified |
-| `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Verified |
+| `opencode` | Multi-model, so Gemini, Grok, Qwen and local models arrive behind one adapter. Read-only is a deny list opencode enforces itself, not a sandbox (see below) |
 
 `groupwork providers` checks that each CLI is signed in, not only installed, with
 `codex login status` and `opencode auth list`. opencode is signed in per model
