@@ -144,7 +144,13 @@ CLI and could not complete a run. It is not registered, so `groupwork providers`
 does not list it. It comes back once one real run has shown it works.
 
 One honest difference, stated rather than papered over: Codex takes
-`--sandbox read-only` and the kernel enforces it. opencode has no sandbox, and
+`--sandbox read-only` and the kernel enforces it. That blocks writes, not reads,
+so `red-team` does not rely on it. A run without the repository uses a Codex
+permission profile that can read only the platform's runtime paths and an empty
+directory, with no network, and the process is started in that directory. On a
+machine where Codex cannot start its sandbox (bwrap without user namespaces,
+for example), the session fails before it begins and groupwork says so, rather
+than running with the repository readable. opencode has no sandbox, and
 by default it allows most tools, including edits, bash and web fetches. So
 groupwork passes it an inline config (`OPENCODE_CONFIG_CONTENT`) that denies
 edits, bash apart from read-only `git` subcommands, web fetch and search,

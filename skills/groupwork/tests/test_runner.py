@@ -245,6 +245,84 @@ def test_other_patterns_run_in_the_repo():
     assert result["repo_access"] is True
 
 
+# A fake codex that answers with where it was started and what it was given.
+FAKE_CODEX_ECHO = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then out="$arg"; fi
+  prev="$arg"
+done
+cat > /dev/null
+{ printf 'PWD %s\\n' "$PWD"; printf 'ARGV %s\\n' "$*"; } > "$out"
+"""
+
+
+def _codex_child(tmp_path, monkeypatch, pattern, **kwargs):
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CODEX_ECHO)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    output = runner.run(pattern, "a brief", provider_name="codex", **kwargs)["output"]
+    return dict(line.split(" ", 1) for line in output.splitlines())
+
+
+def test_red_team_codex_runs_under_the_no_repo_profile_not_the_sandbox_flag(
+        tmp_path, monkeypatch):
+    """--sandbox read-only blocks writes, not reads. The profile blocks reads."""
+    child = _codex_child(tmp_path, monkeypatch, "red-team", cwd=str(tmp_path))
+    assert "--sandbox" not in child["ARGV"]
+    assert 'default_permissions="groupwork-norepo"' in child["ARGV"]
+    assert '":minimal"="read"' in child["ARGV"]
+    assert '":workspace_roots"={"."="read"}' in child["ARGV"]
+    assert "network={enabled=false}" in child["ARGV"]
+    assert ":root" not in child["ARGV"], "deny on :root would deny :minimal too"
+
+
+def test_red_team_codex_is_started_in_the_empty_directory(tmp_path, monkeypatch):
+    """-C only names the workspace. The process must start there as well."""
+    monkeypatch.chdir(tmp_path)
+    child = _codex_child(tmp_path, monkeypatch, "red-team", cwd=str(tmp_path))
+    started = pathlib.Path(child["PWD"])
+    assert started != tmp_path
+    assert started.name.startswith("groupwork-norepo-")
+    assert f"-C {started}" in child["ARGV"]
+
+
+def test_codex_with_the_repository_keeps_the_sandbox_flag(tmp_path, monkeypatch):
+    child = _codex_child(tmp_path, monkeypatch, "verify", cwd=str(tmp_path))
+    assert "--sandbox read-only" in child["ARGV"]
+    assert "default_permissions" not in child["ARGV"]
+    assert pathlib.Path(child["PWD"]) == tmp_path
+
+
+def test_red_team_given_the_repo_uses_the_sandbox_flag(tmp_path, monkeypatch):
+    child = _codex_child(tmp_path, monkeypatch, "red-team", cwd=str(tmp_path),
+                         repo_access=True)
+    assert "--sandbox read-only" in child["ARGV"]
+    assert "default_permissions" not in child["ARGV"]
+
+
+FAKE_CODEX_NO_SANDBOX = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+cat > /dev/null
+echo "Error: Fatal error: Failed to initialize session: fs sandbox helper failed with status exit status: 1: bwrap: setting up uid map: Permission denied" >&2
+exit 1
+"""
+
+
+def test_a_host_that_cannot_start_the_sandbox_is_told_so_not_left_guessing(
+        tmp_path, monkeypatch):
+    """Where Codex cannot restrict reads, red-team refuses rather than reading."""
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CODEX_NO_SANDBOX)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    with pytest.raises(runner.RunFailed, match="--repo-access"):
+        runner.run("red-team", "a brief", provider_name="codex", cwd=str(tmp_path))
+    # The same failure with the repository granted is an ordinary failure.
+    with pytest.raises(runner.RunFailed, match="exited 1") as caught:
+        runner.run("verify", "a brief", provider_name="codex", cwd=str(tmp_path))
+    assert "--repo-access" not in str(caught.value)
+
+
 # --- Timeouts ----------------------------------------------------------------
 
 def test_each_effort_maps_to_the_documented_timeout():
