@@ -6,8 +6,8 @@ description: >-
   without being shown your evidence, second-opinion judges your material
   without being shown your conclusion, verify rules on finished work against
   stated constraints, collaborate is a peer conversation, and debate runs blind
-  proposals into adversarial rounds. Runs on Codex, opencode or Copilot behind
-  one provider layer. Use when the user says "groupwork", "second opinion",
+  proposals into adversarial rounds. Runs on Codex or opencode behind one
+  provider layer. Use when the user says "groupwork", "second opinion",
   "red team", "adversarial review", "cross-check this", "what does codex think",
   "what does claude think", or wants independent eyes before something ships.
 license: MIT
@@ -142,7 +142,6 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/groupwork.py show 20260917T143000Z-a1b2c3
 ## Providers
 
 `codex` by default. `opencode` carries other model families behind one adapter.
-`copilot` needs no separate login where `gh` already works.
 
 Two differences worth stating rather than papering over:
 
@@ -151,10 +150,9 @@ Two differences worth stating rather than papering over:
 read-only there means no `--auto` is passed, so a write attempt stalls rather
 than being refused. Both are recorded, and the citation names the provider.
 
-**The `copilot` adapter is experimental, and that is the adapter rather than
-the skill.** It was written from Copilot's documentation and has never been run
-against the real CLI. `providers` labels it, and a citation from a run through
-it says so. Prefer `codex` or `opencode` when the answer matters.
+**There is no `copilot` provider for now.** An adapter exists in the source,
+but it has never been run against the real CLI and could not complete a run, so
+it is not registered. It comes back once it has been verified.
 
 ## What this will not do
 

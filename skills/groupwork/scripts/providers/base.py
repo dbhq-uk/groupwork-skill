@@ -1,7 +1,7 @@
 """What a counterpart CLI has to be able to do.
 
-groupwork ships with three providers. The interface exists so that adding a
-fourth is a new file rather than a rewrite - but it is deliberately shaped
+groupwork ships with two providers. The interface exists so that adding a
+third is a new file rather than a rewrite - but it is deliberately shaped
 around what a *second opinion* needs, not around what any one vendor's CLI
 happens to offer.
 
