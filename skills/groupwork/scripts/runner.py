@@ -14,6 +14,7 @@ Every rule below is a failure someone has actually had, not a precaution.
     a retry that silently changes the conditions makes the record meaningless.
 """
 
+import hashlib
 import os
 import pathlib
 import tempfile
@@ -137,14 +138,18 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     out_path = runs / f"{run_id}.md"
     log_path = runs / f"{run_id}.log"
 
-    brief_fd, brief_path = tempfile.mkstemp(prefix="groupwork-brief-", suffix=".md")
-    with os.fdopen(brief_fd, "w", encoding="utf-8") as handle:
-        handle.write(brief_text)
+    # The brief is kept beside the output, not deleted after the run. It is the
+    # only evidence of what the counterpart was actually told, and its hash goes
+    # into the citation so the stored copy can be checked against it later.
+    brief_path = runs / f"{run_id}.brief.md"
+    brief_bytes = str(brief_text).encode("utf-8")
+    brief_path.write_bytes(brief_bytes)
+    brief_sha256 = hashlib.sha256(brief_bytes).hexdigest()
 
     started = time.time()
     try:
         provider.run(
-            brief_path, str(out_path), used_model, used_effort, sandbox,
+            str(brief_path), str(out_path), used_model, used_effort, sandbox,
             workdir, repo_access=repo_access, log_path=str(log_path),
             timeout=timeout,
         )
@@ -152,7 +157,6 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         raise RunFailed(str(exc)) from None
     finally:
         ended = time.time()
-        os.unlink(brief_path)
 
     text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
     if not text.strip():
@@ -178,7 +182,14 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         "ended_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ended)),
         "duration_s": round(ended - started, 1),
         "subject": subject or "(unstated)",
-        "withheld": spec["withholds"],
+        "withheld": patterns.withheld(pattern_name, repo_access),
+        # Set by brief.build(), which is the only thing that ran the check. A
+        # brief that did not come from there is a plain string and reads as
+        # not-run, which is the truth about it.
+        "leak_check": getattr(brief_text, "leak_check", "not-run"),
+        "no_prior_view": bool(getattr(brief_text, "no_prior_view", False)),
+        "brief_path": str(brief_path),
+        "brief_sha256": brief_sha256,
         "output_path": str(out_path),
         "output": text,
     }

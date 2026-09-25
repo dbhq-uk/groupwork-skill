@@ -22,12 +22,17 @@ from runner import STATE
 LEDGER = STATE / "runs.jsonl"
 
 #: Written to the ledger. Everything here is either measured or copied from the
-#: pattern - none of it is supplied by the caller except the subject.
+#: pattern - none of it is supplied by the caller except the subject and the
+#: `no_prior_view` declaration, and the citation labels that one as declared.
+#:
+#: New fields are only ever appended. Existing readers of runs.jsonl look fields
+#: up by name, and older lines simply lack the newer ones.
 FIELDS = [
     "id", "pattern", "provider", "cli_version", "model", "effort",
     "effort_requested", "effort_downgraded", "sandbox", "repo_access",
     "experimental_adapter", "started_utc", "ended_utc", "duration_s",
     "subject", "withheld", "output_path",
+    "leak_check", "no_prior_view", "brief_path", "brief_sha256",
 ]
 
 
@@ -67,6 +72,9 @@ def citation(run):
     line = ", ".join(bits)
 
     detail = f"withheld: {run['withheld']}"
+    detail += f". {_leak_check_line(run)}"
+    if run.get("brief_sha256"):
+        detail += f". Brief sha256 `{run['brief_sha256']}`"
     if run.get("experimental_adapter"):
         detail += (
             f". Ran through groupwork's experimental {run['provider']} adapter, "
@@ -78,6 +86,23 @@ def citation(run):
             f"this pattern asks for - {run['provider']} cannot reach it"
         )
     return f"{line}. Run `{run['id']}`, {detail}."
+
+
+def _leak_check_line(run):
+    """Say whether our view was checked for in the brief, and nothing more.
+
+    A ledger line written before the check was recorded has no `leak_check`
+    field. Saying "not recorded" for it is true; saying nothing would let an
+    old citation read as though it had passed.
+    """
+    status = run.get("leak_check")
+    if status == "passed":
+        return "Leak check passed: the draft conclusion was not found in the brief"
+    if status == "not-run" and run.get("no_prior_view"):
+        return "Leak check not run: the caller declared no prior view"
+    if status == "not-run":
+        return "Leak check not run"
+    return "Leak check not recorded"
 
 
 def read_ledger(limit=None):

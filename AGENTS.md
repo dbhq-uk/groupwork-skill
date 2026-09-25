@@ -25,9 +25,16 @@ else easier.
 ### 1. A blind pattern's brief never carries our conclusion
 
 `brief.build()` raises if `our_view` is passed to `red-team`, `second-opinion`,
-`verify` or `debate`. It also raises if `assert_withholds` text is found in the
-assembled brief, which catches the honest mistake of pasting a conclusion into
-`--context`.
+`verify` or `debate`. It also raises if any run of six words from
+`assert_withholds` is found in what the caller supplied, after lower-casing and
+stripping punctuation and markdown. That catches the honest mistake of pasting a
+conclusion into `--context`, including with a comma added or a word changed.
+
+A blind pattern also refuses to build without either `assert_withholds` or
+`no_prior_view`. The result, `passed` or `not-run`, travels with the brief as a
+`Brief` string and is copied into the ledger and the citation by the runner. The
+brief itself is kept as `runs/<id>.brief.md`, and its sha256 goes in the
+citation.
 
 Do not make this a warning. A caller who believes the counterpart saw their
 reasoning, and a counterpart that did not, are the two halves of a provenance

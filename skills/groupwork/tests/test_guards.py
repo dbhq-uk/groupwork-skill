@@ -69,6 +69,96 @@ def test_short_phrases_are_not_treated_as_leaks():
     assert brief.leaks("we should ship the thing", "we should ship the thing") == []
 
 
+# The three rewordings that got past the old whole-sentence match. Each one
+# leaves the argument exactly as a reader would take it, so each one has to be
+# caught.
+REWORDED = {
+    "comma": (
+        "We should ship the thing, because the incumbent is weak and the market "
+        "is clearly wide open for a tool like ours."
+    ),
+    "bold": (
+        "We should ship the thing because the **incumbent is weak** and the "
+        "market is clearly wide open for a tool like ours."
+    ),
+    "one word swapped": (
+        "We should ship the thing because the incumbent is feeble and the market "
+        "is clearly wide open for a tool like ours."
+    ),
+    "two short sentences": "We should use the queue. Cron is wrong.",
+}
+
+
+@pytest.mark.parametrize("case", sorted(REWORDED))
+def test_a_reworded_view_is_still_caught(case):
+    view = DRAFT_VIEW if case != "two short sentences" else REWORDED[case]
+    with pytest.raises(brief.BriefError, match="not independent"):
+        brief.build(
+            "second-opinion",
+            subject="a thing",
+            context=f"Background.\n\n{REWORDED[case]}\n\nSome more background.",
+            assert_withholds=view,
+        )
+
+
+@pytest.mark.parametrize("template", sorted(p.name for p in TEMPLATES.glob("*.md")))
+def test_no_template_is_mistaken_for_a_leak(template):
+    """The template is the same in every run, so it can never carry our view.
+
+    Given the whole of a template as the view to withhold, a clean brief must
+    still build. Anything else is a false positive that would refuse runs for
+    sharing a phrase with groupwork's own wording.
+    """
+    view = (TEMPLATES / template).read_text(encoding="utf-8")
+    for pattern in sorted(patterns.BLIND):
+        brief.build(pattern, subject="the plan in docs/plan.md",
+                    context="It was written last week.", assert_withholds=view)
+    brief.build("red-team", subject="x", context="y",
+                assert_withholds=brief.SOLE_REVIEWER + brief.OUTPUT_CONTRACT)
+
+
+@pytest.mark.parametrize("pattern", sorted(patterns.BLIND))
+def test_a_blind_pattern_needs_a_declaration_about_our_view(pattern):
+    """Without one, the citation could say nothing true about what was kept out."""
+    with pytest.raises(brief.BriefError, match="--no-prior-view"):
+        brief.build(pattern, subject="a thing", context="some context")
+
+
+def test_no_prior_view_is_enough_on_its_own():
+    text = brief.build("second-opinion", subject="a thing", no_prior_view=True)
+    assert text.leak_check == "not-run"
+    assert text.no_prior_view is True
+
+
+def test_a_checked_brief_records_that_the_check_passed():
+    text = brief.build("second-opinion", subject="a thing",
+                       assert_withholds=DRAFT_VIEW)
+    assert text.leak_check == "passed"
+    assert text.no_prior_view is False
+
+
+def test_a_view_too_short_to_check_is_refused_rather_than_passed():
+    """A view of five words has no run of six to look for, so nothing was checked."""
+    with pytest.raises(brief.BriefError, match="too short"):
+        brief.build("second-opinion", subject="a thing", assert_withholds="use the queue")
+
+
+def test_both_declarations_at_once_are_refused():
+    with pytest.raises(brief.BriefError, match="not both"):
+        brief.build("second-opinion", subject="a thing",
+                    assert_withholds=DRAFT_VIEW, no_prior_view=True)
+
+
+def test_a_debate_round_is_not_checked_against_the_last_round_answer():
+    """The earlier answer is the counterpart's own work. Agreeing is not a leak."""
+    text = brief.build(
+        "debate", subject="queue or cron", round_=1, assert_withholds=DRAFT_VIEW,
+        prior_round=DRAFT_VIEW,
+    )
+    assert "incumbent is weak" in text
+    assert text.leak_check == "passed"
+
+
 # --- Rule 3: no brief contains groupwork's own trigger phrases ----------------
 
 @pytest.mark.parametrize("template", sorted(p.name for p in TEMPLATES.glob("*.md")))
@@ -88,7 +178,8 @@ def test_templates_contain_no_trigger_phrases(template):
 
 def test_build_rejects_a_trigger_phrase_in_the_subject():
     with pytest.raises(brief.BriefError, match="re-trigger"):
-        brief.build("verify", subject="give me a second opinion on the diff")
+        brief.build("verify", subject="give me a second opinion on the diff",
+                    no_prior_view=True)
 
 
 def test_trigger_list_covers_every_phrase_in_the_skill_frontmatter():
@@ -148,6 +239,7 @@ def test_every_pattern_has_a_template_that_exists():
 def test_every_pattern_builds():
     """Every template's placeholders are ones build() actually supplies."""
     for name in patterns.PATTERNS:
-        text = brief.build(name, subject="a subject", context="some context")
+        text = brief.build(name, subject="a subject", context="some context",
+                           no_prior_view=name in patterns.BLIND)
         assert text.strip()
         assert "{" not in text.replace("{subject}", ""), f"{name} left a placeholder"

@@ -69,6 +69,7 @@ def cmd_run(args):
             constraints=args.constraints or "",
             our_view=args.our_view,
             assert_withholds=args.assert_withholds,
+            no_prior_view=args.no_prior_view,
         )
     except (brief.BriefError, ValueError) as exc:
         print(f"Brief refused: {exc}", file=sys.stderr)
@@ -111,22 +112,17 @@ def cmd_debate(args):
     """
     transcript = []
     for round_ in range(args.rounds + 1):
-        if round_ == 0:
-            context = args.context or ""
-        else:
-            context = (
-                (args.context or "")
-                + "\n\n## The other position, from the previous round\n\n"
-                + transcript[-1]["output"]
-            )
         try:
             text = brief.build(
                 "debate",
                 subject=args.subject,
-                context=context,
+                context=args.context or "",
                 question=args.question or "",
                 constraints=args.constraints or "",
                 round_=round_,
+                assert_withholds=args.assert_withholds,
+                no_prior_view=args.no_prior_view,
+                prior_round=transcript[-1]["output"] if transcript else "",
             )
         except (brief.BriefError, ValueError) as exc:
             print(f"Brief refused at round {round_}: {exc}", file=sys.stderr)
@@ -203,6 +199,9 @@ def main(argv=None):
                      help="collaborate only; refused by the blind patterns")
     run.add_argument("--assert-withholds", dest="assert_withholds",
                      help="our draft conclusion, checked for absence and not included")
+    run.add_argument("--no-prior-view", dest="no_prior_view", action="store_true",
+                     help="declare that no view has been formed yet; a blind "
+                          "pattern needs this or --assert-withholds")
     run.add_argument("--provider", choices=sorted(providers.REGISTRY))
     run.add_argument("--model")
     run.add_argument("--effort", choices=patterns.EFFORTS)
@@ -221,6 +220,10 @@ def main(argv=None):
     debate.add_argument("--question")
     debate.add_argument("--constraints")
     debate.add_argument("--rounds", type=int, default=2)
+    debate.add_argument("--assert-withholds", dest="assert_withholds",
+                        help="our draft conclusion, checked for absence and not included")
+    debate.add_argument("--no-prior-view", dest="no_prior_view", action="store_true",
+                        help="declare that no view has been formed yet")
     debate.add_argument("--provider", choices=sorted(providers.REGISTRY))
     debate.add_argument("--model")
     debate.add_argument("--cwd")

@@ -44,6 +44,13 @@ PATTERNS = {
         "withholds": (
             "our evidence and our retrieval - it is told the claim, not where we looked"
         ),
+        # What it withheld when the caller overrode the default with
+        # --repo-access. Anything in the repository was open to it then, so
+        # the citation must not say the evidence was kept back.
+        "withholds_with_repo": (
+            "only what is outside the repository - it is told the claim and was "
+            "given the repository to read"
+        ),
         "template": "red-team.md",
     },
     "second-opinion": {
@@ -143,6 +150,18 @@ def get(name):
         raise ValueError(
             f"Unknown pattern '{name}'. Available: {', '.join(sorted(PATTERNS))}"
         ) from None
+
+
+def withheld(name, repo_access):
+    """What a run of this pattern actually withheld, given the access it had.
+
+    A pattern that withholds the repository by default and was given it anyway
+    has its own wording, so a citation never claims more than the run did.
+    """
+    spec = get(name)
+    if repo_access and not spec["repo_access"]:
+        return spec["withholds_with_repo"]
+    return spec["withholds"]
 
 
 def resolve_effort(wanted, supported):
