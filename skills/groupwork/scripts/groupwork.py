@@ -90,6 +90,7 @@ def cmd_run(args):
             effort=args.effort,
             allow_write=args.allow_write,
             subject=args.subject,
+            timeout=args.timeout,
         )
     except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
         print(f"Run failed: {exc}", file=sys.stderr)
@@ -131,6 +132,7 @@ def cmd_debate(args):
             result = runner.run(
                 "debate", text, provider_name=args.provider, cwd=args.cwd,
                 model=args.model, subject=f"{args.subject} (round {round_})",
+                timeout=args.timeout,
             )
         except (runner.RunFailed, providers.ProviderError, ValueError) as exc:
             print(f"Round {round_} failed: {exc}", file=sys.stderr)
@@ -175,6 +177,13 @@ def cmd_show(args):
     return 0
 
 
+def _seconds(value):
+    seconds = int(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError("must be a whole number of seconds above 0")
+    return seconds
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="groupwork",
@@ -212,6 +221,8 @@ def main(argv=None):
                      help="permit a write sandbox; ask the user first, every time")
     run.add_argument("--dry-run", action="store_true",
                      help="print the brief and run nothing")
+    run.add_argument("--timeout", type=_seconds,
+                     help="seconds before the run is stopped (default: by effort)")
     run.set_defaults(func=cmd_run)
 
     debate = sub.add_parser("debate", help="blind proposals, then adversarial rounds")
@@ -227,6 +238,8 @@ def main(argv=None):
     debate.add_argument("--provider", choices=sorted(providers.REGISTRY))
     debate.add_argument("--model")
     debate.add_argument("--cwd")
+    debate.add_argument("--timeout", type=_seconds,
+                        help="seconds before each round is stopped (default: by effort)")
     debate.set_defaults(func=cmd_debate)
 
     history = sub.add_parser("history", help="past runs")

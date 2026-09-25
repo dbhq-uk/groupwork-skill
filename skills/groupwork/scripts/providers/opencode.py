@@ -33,7 +33,7 @@ import json
 import os
 import subprocess
 
-from .base import Provider, ProviderError
+from .base import Provider, ProviderError, RunTimedOut, spawn
 
 #: What a read-only review may do, as opencode permission rules. Last match
 #: wins, so the blanket bash deny comes first and the git reads after it.
@@ -139,30 +139,30 @@ class Opencode(Provider):
         with open(brief_path, "rb") as stdin, open(out_path, "wb") as out:
             log = open(log_path, "wb") if log_path else subprocess.DEVNULL
             try:
-                done = subprocess.run(
-                    argv, stdin=stdin, stdout=out, stderr=log,
+                returncode = spawn(
+                    self.name, argv, stdin=stdin, stdout=out, stderr=log,
                     cwd=cwd, timeout=timeout, env=read_only_env(),
                 )
-            except subprocess.TimeoutExpired:
-                raise ProviderError(
-                    f"opencode: timed out after {timeout}s. A tool that still "
-                    f"asks for permission, such as reading a .env file, waits on "
-                    f"a prompt nobody can answer."
+            except RunTimedOut as exc:
+                raise RunTimedOut(
+                    f"{exc} A tool that still asks for permission, such as "
+                    f"reading a .env file, waits on a prompt nobody can answer."
                 ) from None
             finally:
                 if log is not subprocess.DEVNULL:
                     log.close()
-        if done.returncode != 0:
-            raise ProviderError(f"opencode: exited {done.returncode}; see the log")
-        return done.returncode
+        if returncode != 0:
+            raise ProviderError(f"opencode: exited {returncode}; see the log")
+        return returncode
 
     def resume(self, brief_path, out_path, cwd, log_path=None, timeout=600):
         argv = ["opencode", "run", "--dir", cwd, "--agent", AGENT, "--continue"]
         with open(brief_path, "rb") as stdin, open(out_path, "wb") as out:
-            done = subprocess.run(
-                argv, stdin=stdin, stdout=out, stderr=subprocess.DEVNULL,
-                cwd=cwd, timeout=timeout, env=read_only_env(),
+            returncode = spawn(
+                self.name, argv, stdin=stdin, stdout=out,
+                stderr=subprocess.DEVNULL, cwd=cwd, timeout=timeout,
+                env=read_only_env(),
             )
-        if done.returncode != 0:
-            raise ProviderError(f"opencode: resume exited {done.returncode}")
-        return done.returncode
+        if returncode != 0:
+            raise ProviderError(f"opencode: resume exited {returncode}")
+        return returncode

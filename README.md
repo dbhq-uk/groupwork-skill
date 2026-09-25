@@ -129,7 +129,10 @@ python3 scripts/groupwork.py history
 ```
 
 `--dry-run` prints the brief and runs nothing, so you can read what will be sent
-before paying for it.
+before paying for it. `--timeout N` sets the time limit in seconds for one run;
+by default it follows the effort, 20 minutes at `high`. A run that hits it is
+stopped along with every process the CLI started, so nothing keeps running, or
+billing, after groupwork has reported it dead.
 
 ## Providers
 

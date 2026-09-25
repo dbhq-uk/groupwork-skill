@@ -19,12 +19,118 @@ environment variable or a quirk of one CLI leaks into the runner, the next
 provider inherits it as though it were the contract.
 """
 
+import contextlib
+import os
 import shutil
+import signal
 import subprocess
+import threading
+import time
 
 
 class ProviderError(RuntimeError):
     """A provider could not do what was asked, and said why."""
+
+
+class RunTimedOut(ProviderError):
+    """The run hit its time limit and every process it started was stopped."""
+
+
+#: How long a stopped run gets to exit after SIGTERM before it is SIGKILLed.
+GRACE_S = 10
+
+
+class _Terminated(SystemExit):
+    """groupwork itself was told to stop while a run was in flight."""
+
+
+def spawn(name, argv, *, stdin, stdout, stderr, cwd, timeout, env=None):
+    """Run a provider CLI in its own process group, and stop all of it.
+
+    `subprocess.run(timeout=)` SIGKILLs the direct child only. For Codex that is
+    the npm wrapper, which forwards SIGINT, SIGTERM and SIGHUP to the native
+    binary but cannot forward SIGKILL, so the real CLI kept running, and
+    billing, after groupwork had reported the run dead.
+
+    So the child leads a new session, and on a timeout, an interrupt or a
+    SIGTERM or SIGHUP to groupwork, the whole group gets SIGTERM, then SIGKILL
+    for anything still there after GRACE_S. Returns the exit status; raises
+    ProviderError on a timeout.
+    """
+    proc = subprocess.Popen(
+        argv, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd, env=env,
+        start_new_session=True,
+    )
+    try:
+        with _stop_group_on_signal():
+            return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop_group(proc)
+        raise RunTimedOut(
+            f"{name}: timed out after {timeout}s, and every process it started "
+            f"was stopped. Pass a longer --timeout if the run needs it."
+        ) from None
+    except BaseException:
+        stop_group(proc)
+        raise
+
+
+def stop_group(proc, grace=None):
+    """SIGTERM the process group, then SIGKILL whatever is left after grace."""
+    grace = GRACE_S if grace is None else grace
+    pgid = proc.pid
+    _signal_group(pgid, signal.SIGTERM)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline:
+        proc.poll()  # reap the leader, so a zombie does not count as alive
+        if not _group_alive(pgid):
+            return
+        time.sleep(0.05)
+    _signal_group(pgid, signal.SIGKILL)
+    proc.wait()
+
+
+def _signal_group(pgid, sig):
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        pass
+
+
+def _group_alive(pgid):
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+@contextlib.contextmanager
+def _stop_group_on_signal():
+    """Turn SIGTERM and SIGHUP into an exception while a run is in flight.
+
+    The child is in its own session, so a signal aimed at groupwork no longer
+    reaches it. Raising lets spawn() stop the group on the way out. SIGINT
+    already raises KeyboardInterrupt. Signal handlers can only be set from the
+    main thread, so elsewhere this does nothing.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def raise_terminated(signum, frame):
+        raise _Terminated(128 + signum)
+
+    previous = {}
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        previous[sig] = signal.signal(sig, raise_terminated)
+    try:
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
 
 class Provider:

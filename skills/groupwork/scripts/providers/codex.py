@@ -32,7 +32,7 @@ explicit alternative, rather than quietly running with the repository readable.
 
 import subprocess
 
-from .base import Provider, ProviderError
+from .base import Provider, ProviderError, RunTimedOut, spawn
 
 #: The permission profile for a run that must not see the repository. Anything
 #: not listed cannot be read. `:root` is deliberately not set to deny: deny
@@ -118,6 +118,8 @@ class Codex(Provider):
         )
         try:
             return _spawn(argv, brief_path, log_path, timeout, self.name, cwd)
+        except RunTimedOut:
+            raise  # a session that ran long enough to time out did start
         except ProviderError:
             if not repo_access and _sandbox_failed_to_start(log_path):
                 raise ProviderError(
@@ -159,18 +161,18 @@ def _spawn(argv, brief_path, log_path, timeout, name, cwd):
     with open(brief_path, "rb") as stdin:
         log = open(log_path, "wb") if log_path else subprocess.DEVNULL
         try:
-            done = subprocess.run(
-                argv, stdin=stdin, stdout=log, stderr=log, timeout=timeout,
-                cwd=cwd,
+            returncode = spawn(
+                name, argv, stdin=stdin, stdout=log, stderr=log, cwd=cwd,
+                timeout=timeout,
             )
-        except subprocess.TimeoutExpired:
-            raise ProviderError(
-                f"{name}: timed out after {timeout}s. Output is written only at "
-                f"completion, so nothing was salvaged."
+        except RunTimedOut as exc:
+            raise RunTimedOut(
+                f"{exc} Output is written only at completion, so nothing was "
+                f"salvaged."
             ) from None
         finally:
             if log is not subprocess.DEVNULL:
                 log.close()
-    if done.returncode != 0:
-        raise ProviderError(f"{name}: exited {done.returncode}; see the log")
-    return done.returncode
+    if returncode != 0:
+        raise ProviderError(f"{name}: exited {returncode}; see the log")
+    return returncode
