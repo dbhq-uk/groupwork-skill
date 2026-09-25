@@ -87,7 +87,6 @@ def cmd_run(args):
             context=args.context or "",
             question=args.question or "",
             constraints=args.constraints or "",
-            our_view=args.our_view,
             assert_withholds=args.assert_withholds,
             no_prior_view=args.no_prior_view,
             answers=answers,
@@ -313,7 +312,7 @@ def main(argv=None):
     sub.add_parser("providers", help="which counterpart CLIs are ready").set_defaults(
         func=cmd_providers
     )
-    sub.add_parser("patterns", help="the five patterns and what each withholds").set_defaults(
+    sub.add_parser("patterns", help="the four patterns and what each withholds").set_defaults(
         func=cmd_patterns
     )
 
@@ -323,8 +322,6 @@ def main(argv=None):
     run.add_argument("--context", help="everything from outside the repo it will need")
     run.add_argument("--question", help="what specifically to answer")
     run.add_argument("--constraints", help="for verify: the constraints to rule on")
-    run.add_argument("--our-view", dest="our_view",
-                     help="collaborate only; refused by the blind patterns")
     run.add_argument("--assert-withholds", dest="assert_withholds",
                      help="our draft conclusion, checked for absence and not included")
     run.add_argument("--no-prior-view", dest="no_prior_view", action="store_true",

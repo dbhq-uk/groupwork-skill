@@ -47,12 +47,6 @@ def test_blind_patterns_catch_a_leak_through_context(pattern):
         )
 
 
-def test_collaborate_accepts_our_view():
-    """The one pattern that is meant to see it, does."""
-    text = brief.build("collaborate", subject="a thing", our_view=DRAFT_VIEW)
-    assert "incumbent is weak" in text
-
-
 def test_a_clean_blind_brief_builds():
     """The guard must not be so eager that the normal case fails."""
     text = brief.build(
@@ -258,8 +252,20 @@ def test_adversarial_patterns_use_the_frontier_model():
         assert patterns.PATTERNS[name]["effort"] == "high"
 
 
-def test_collaborate_does_not():
-    assert patterns.PATTERNS["collaborate"]["model"] == "gpt-5.6-sol"
+def test_every_pattern_is_blind():
+    """collaborate was the one pattern that took our view, and it is gone.
+
+    It withheld nothing, so its citation showed nothing a reader could rely on,
+    and nothing could resume the session it claimed to be.
+    """
+    assert "collaborate" not in patterns.PATTERNS
+    assert not (TEMPLATES / "collaborate.md").exists()
+    assert patterns.BLIND == set(patterns.PATTERNS)
+
+
+def test_a_view_passed_in_points_at_an_advisor_not_a_pattern():
+    with pytest.raises(brief.BriefError, match="persistent advisor"):
+        brief.build("second-opinion", subject="a thing", our_view=DRAFT_VIEW)
 
 
 def test_every_pattern_has_a_template_that_exists():

@@ -145,10 +145,10 @@ def build(pattern_name, subject, context="", question="", our_view=None,
           answers=None):
     """Build the brief for a pattern, or raise saying why it would be unsound.
 
-    `our_view` is accepted for every pattern and permitted for one. Passing it
-    to a blind pattern is an error rather than a silently ignored argument,
-    because a caller who thinks it was included and a brief that dropped it are
-    the two halves of a provenance claim that is not true.
+    `our_view` is accepted so that passing it is an error rather than a
+    silently ignored argument. Every pattern is blind, so none takes it. A
+    caller who thinks it was included and a brief that dropped it are the two
+    halves of a provenance claim that is not true.
 
     `assert_withholds` is the other half of that guard, and the one that catches
     the honest mistake. Pass your draft conclusion here when running a blind
@@ -174,7 +174,8 @@ def build(pattern_name, subject, context="", question="", our_view=None,
         raise BriefError(
             f"'{pattern_name}' withholds {spec['withholds']}. It cannot be given "
             f"our view - that is the whole of what makes its answer worth citing. "
-            f"Use 'collaborate' if you want to work through it together."
+            f"To think it through with a peer who sees your view, use a "
+            f"persistent advisor session instead."
         )
 
     if assert_withholds and no_prior_view:
@@ -208,7 +209,6 @@ def build(pattern_name, subject, context="", question="", our_view=None,
         context=context.strip() or "(none supplied)",
         question=question.strip() or spec.get("default_question") or spec["purpose"],
         constraints=constraints.strip() or "(none stated)",
-        our_view=(our_view or "").strip(),
         answers=_ANSWERS,
         sole_reviewer=SOLE_REVIEWER,
         output_contract=OUTPUT_CONTRACT,

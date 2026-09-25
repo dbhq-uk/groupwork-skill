@@ -105,7 +105,6 @@ class Opencode(Provider):
     # Deliberately only one. See the module docstring: offering
     # "workspace-write" would imply a boundary this adapter does not set up.
     sandboxes = ["read-only"]
-    can_resume = True
     can_withhold_repo = True
 
     def install_hint(self):
@@ -153,16 +152,4 @@ class Opencode(Provider):
                     log.close()
         if returncode != 0:
             raise ProviderError(f"opencode: exited {returncode}; see the log")
-        return returncode
-
-    def resume(self, brief_path, out_path, cwd, log_path=None, timeout=600):
-        argv = ["opencode", "run", "--dir", cwd, "--agent", AGENT, "--continue"]
-        with open(brief_path, "rb") as stdin, open(out_path, "wb") as out:
-            returncode = spawn(
-                self.name, argv, stdin=stdin, stdout=out,
-                stderr=subprocess.DEVNULL, cwd=cwd, timeout=timeout,
-                env=read_only_env(),
-            )
-        if returncode != 0:
-            raise ProviderError(f"opencode: resume exited {returncode}")
         return returncode

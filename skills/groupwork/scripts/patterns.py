@@ -1,18 +1,17 @@
-"""The five patterns. This file is the product.
+"""The four patterns. This file is the product.
 
 Everything else in groupwork is plumbing that exists to run one of these
 faithfully and record what happened. A pattern is four things:
 
-  - a model and effort, because an adversary is worth paying for and a
-    conversation is not;
-  - a sandbox, which is read-only for all five;
+  - a model and effort, because an adversary is worth paying for;
+  - a sandbox, which is read-only for all four;
   - a **withholding rule**, which is the part that makes the result citable;
   - a brief template that says all of it to the counterpart.
 
 The withholding rule is why this is not a wrapper. A second opinion that has
 already been told your conclusion is not a second opinion, it is agreement with
-extra steps. Three of the five patterns therefore refuse to carry your view at
-all, and the refusal is enforced in code rather than requested in prose.
+extra steps. So every pattern refuses to carry your view at all, and the
+refusal is enforced in code rather than requested in prose.
 """
 
 # --- Model policy -----------------------------------------------------------
@@ -21,11 +20,11 @@ all, and the refusal is enforced in code rather than requested in prose.
 # decision (Dan, 17 Sep 2026) and it is the reason this skill exists rather than
 # a prompt: the request is made once, here, instead of per run.
 #
-# Collaboration does not get it. A resumable back-and-forth is many turns, and
-# neither the cost nor the latency is earned when the job is thinking out loud
-# with somebody.
+# There was a fifth pattern, `collaborate`, a peer session on a cheaper model.
+# Nothing could resume it, it withheld nothing, so its citation showed nothing
+# a reader could rely on, and it was removed. A persistent advisor session does
+# that job better.
 ADVERSARIAL = ("gpt-6-astra", "high")
-COLLABORATIVE = ("gpt-5.6-sol", "medium")
 
 
 PATTERNS = {
@@ -72,16 +71,6 @@ PATTERNS = {
         "blind": True,
         "withholds": "our verdict - it gets the constraints and the diff, and rules on each",
         "template": "verify.md",
-    },
-    "collaborate": {
-        "purpose": "A resumable peer session where disagreement is a discussion",
-        "model": COLLABORATIVE[0],
-        "effort": COLLABORATIVE[1],
-        "sandbox": "read-only",
-        "repo_access": True,
-        "blind": False,
-        "withholds": "nothing - it is working with you, so it gets the full picture",
-        "template": "collaborate.md",
     },
     "panel": {
         "purpose": (

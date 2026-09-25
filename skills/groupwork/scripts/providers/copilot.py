@@ -49,7 +49,6 @@ class Copilot(Provider):
     # at its only level and the record says so rather than claiming high.
     efforts = ["default"]
     sandboxes = ["read-only", "workspace-write"]
-    can_resume = False
     can_withhold_repo = True
 
     # This adapter has never been run against the real CLI. It is written from

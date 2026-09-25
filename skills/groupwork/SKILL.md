@@ -2,13 +2,12 @@
 name: groupwork
 description: >-
   Put a second agent on the work - as an adversary or as a partner - and get
-  back a result you can cite. Five named patterns: red-team attacks an idea
+  back a result you can cite. Four named patterns: red-team attacks an idea
   without being shown your evidence, second-opinion judges your material
   without being shown your conclusion, verify rules on finished work against
-  stated constraints, collaborate is a peer conversation, and panel puts one
-  hard question to several models at once, each answering alone. Runs on Codex
-  or opencode behind one
-  provider layer. Use when the user says "groupwork", "second opinion",
+  stated constraints, and panel puts one hard question to several models at
+  once, each answering alone. Runs on Codex or opencode behind one provider
+  layer. Use when the user says "groupwork", "second opinion",
   "red team", "adversarial review", "cross-check this", "what does codex think",
   "what does claude think", or wants independent eyes before something ships.
 license: MIT
@@ -21,8 +20,8 @@ swappable.
 
 The reason this is not a wrapper around `codex exec` is the **withholding
 rule**. A second opinion that has already been told your conclusion is not a
-second opinion, it is agreement with extra steps. Three of the five patterns
-therefore refuse to carry your view at all, and the refusal is enforced in code.
+second opinion, it is agreement with extra steps. So every pattern refuses to
+carry your view at all, and the refusal is enforced in code.
 
 ## Pick the pattern first
 
@@ -31,13 +30,16 @@ therefore refuse to carry your view at all, and the refusal is enforced in code.
 | `red-team` | You want the idea killed if it deserves killing | Your evidence, and by default the repository itself |
 | `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
 | `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
-| `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
 | `panel` | A hard call where the trade-off is the answer | Your view, and each other's answers |
 
 Two that look alike and are not: `red-team` is handed a claim and told to break
 it, deliberately starved of the material so its attack cannot inherit your blind
 spots. `second-opinion` is handed the material and asked to reach its own
 judgement. Use `red-team` on an idea, `second-opinion` on a document.
+
+For thinking out loud with a peer who sees your view, use a persistent advisor
+session instead. Every pattern here withholds your view, because that is what
+makes its answer worth citing.
 
 Do not burn a run on something cheap. Naming, style, "what does this code do" -
 read it yourself. These calls are slow and they cost money.
@@ -217,5 +219,5 @@ it is not registered. It comes back once it has been verified.
   real money there, and OpenAI's own plugin already does it well.
 - **Write findings into the repo.** It records the run and hands you a citation.
   Where a finding belongs is your call, not a guess.
-- **Merge, commit or change anything.** Read-only is the default for all five
+- **Merge, commit or change anything.** Read-only is the default for all four
   patterns, and a write sandbox needs a decision from the user in that run.

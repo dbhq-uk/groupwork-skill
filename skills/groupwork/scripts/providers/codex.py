@@ -72,7 +72,6 @@ class Codex(Provider):
     ]
     efforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
     sandboxes = ["read-only", "workspace-write", "danger-full-access"]
-    can_resume = True
     can_withhold_repo = True
 
     def install_hint(self):
@@ -131,13 +130,6 @@ class Codex(Provider):
                     "say so. The log has Codex's own error."
                 ) from None
             raise
-
-    def resume(self, brief_path, out_path, cwd, log_path=None, timeout=600):
-        # Deliberately no flags. A resumed session inherits the model, effort
-        # and sandbox of the original, and passing them again is an error.
-        argv = ["codex", "exec", "--skip-git-repo-check", "resume", "--last",
-                "-o", out_path]
-        return _spawn(argv, brief_path, log_path, timeout, self.name, cwd)
 
 
 def _sandbox_failed_to_start(log_path):

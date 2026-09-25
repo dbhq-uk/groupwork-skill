@@ -106,11 +106,35 @@ def test_every_provider_implements_the_contract(name):
 @pytest.mark.parametrize("name", sorted(providers.REGISTRY))
 def test_capabilities_returns_every_required_key(name):
     caps = providers.get(name).capabilities()
-    for key in ("provider", "models", "efforts", "sandboxes", "can_resume",
-                "can_withhold_repo"):
+    for key in ("provider", "models", "efforts", "sandboxes", "can_withhold_repo"):
         assert key in caps, f"{name} capabilities missing {key}"
     assert caps["sandboxes"], f"{name} offers no sandbox at all"
     assert json.dumps(caps), f"{name} capabilities are not serialisable"
+
+
+@pytest.mark.parametrize("name", sorted(providers.REGISTRY) + ["copilot"])
+def test_no_provider_can_resume_a_session(name):
+    """Nothing called resume(), and Codex's picked the newest session on the machine."""
+    if name == "copilot":
+        from providers.copilot import Copilot as cls
+    else:
+        cls = providers.REGISTRY[name]
+    assert not hasattr(cls, "resume"), f"{name} still defines resume()"
+    assert "can_resume" not in cls().capabilities()
+
+
+def test_patterns_does_not_list_collaborate(capsys):
+    assert groupwork.main(["patterns"]) == 0
+    out = capsys.readouterr().out
+    assert "collaborate" not in out
+    assert "panel" in out
+
+
+def test_there_is_no_our_view_flag(capsys):
+    with pytest.raises(SystemExit):
+        groupwork.main(["run", "second-opinion", "--subject", "a thing",
+                        "--our-view", DRAFT_VIEW, "--provider", "stub"])
+    assert "--our-view" in capsys.readouterr().err
 
 
 def test_a_provider_that_cannot_reach_the_sandbox_says_so():
@@ -756,3 +780,13 @@ def test_a_ledger_line_from_before_status_existed_reads_as_done(capsys):
     assert groupwork.main(["history"]) == 0
     assert "[" not in capsys.readouterr().out
     assert groupwork.main(["show", row["id"]]) == 0
+
+
+def test_an_old_collaborate_line_still_shows_and_cites(capsys):
+    """collaborate is gone, but its runs are still in people's ledgers."""
+    row = {k: v for k, v in provenance.record(go()).items()
+           if k not in ("status", "error", "panel_id", "panel_round")}
+    row.update(pattern="collaborate", withheld="nothing - it is working with you")
+    provenance.LEDGER.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    assert groupwork.main(["show", row["id"]]) == 0
+    assert "**Worked through with:**" in capsys.readouterr().out

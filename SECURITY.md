@@ -22,7 +22,7 @@ credited in the fix unless you would rather not be.
 
 ## Sandboxing, honestly
 
-All five patterns run read-only by default, and `--allow-write` requires an
+All four patterns run read-only by default, and `--allow-write` requires an
 explicit decision per run.
 
 "Read-only" is not the same guarantee on every provider:
