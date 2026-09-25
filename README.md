@@ -110,11 +110,14 @@ citation can be checked against it later.
 # which counterparts are installed AND authenticated - not the same thing
 python3 scripts/groupwork.py providers
 
-# attack an idea, without showing it where you looked
-python3 scripts/groupwork.py run red-team \
+# attack an idea, without showing it where you looked. --background prints a
+# run id at once and the run carries on detached; status and result poll it
+python3 scripts/groupwork.py run red-team --background \
   --subject "a CLI that posts physical letters, priced per letter" \
   --context "UK only. Signed For and Tracked. No subscription." \
   --no-prior-view
+python3 scripts/groupwork.py status 20260925T101500Z-a1b2c3   # running, done or failed
+python3 scripts/groupwork.py result 20260925T101500Z-a1b2c3   # the answer and the citation
 
 # an independent read of a document, with a guard against your own view leaking in
 python3 scripts/groupwork.py run second-opinion \
@@ -127,6 +130,10 @@ python3 scripts/groupwork.py debate --subject "queue or cron" --rounds 2 \
 
 python3 scripts/groupwork.py history
 ```
+
+A run at `high` effort can take more than ten minutes, longer than most agent
+hosts let one command run, so `--background` is the normal way to start one.
+The skill tells the agent to use it every time.
 
 `--dry-run` prints the brief and runs nothing, so you can read what will be sent
 before paying for it. `--timeout N` sets the time limit in seconds for one run;
