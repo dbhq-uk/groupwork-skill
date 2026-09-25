@@ -24,8 +24,8 @@ else easier.
 
 ### 1. A blind pattern's brief never carries our conclusion
 
-`brief.build()` raises if `our_view` is passed to `red-team`, `second-opinion`,
-`verify` or `panel`. It also raises if any run of six words from
+`brief.build()` raises if `our_view` is passed at all, because every pattern
+is blind: `red-team`, `second-opinion`, `verify` and `panel`. It also raises if any run of six words from
 `assert_withholds` is found in what the caller supplied, after lower-casing and
 stripping punctuation and markdown. That catches the honest mistake of pasting a
 conclusion into `--context`, including with a comma added or a word changed.
@@ -68,7 +68,7 @@ frontmatter, so adding a trigger there without adding it here fails CI.
 
 ### 4. No write sandbox without a decision in that run
 
-All five patterns are `read-only`. `--allow-write` is not sticky, is not read
+All four patterns are `read-only`. `--allow-write` is not sticky, is not read
 from config, and requires the caller to have asked the user in that run.
 
 ## Adding a provider
@@ -103,7 +103,10 @@ citation means, so:
 - Changing `repo_access` on `red-team` removes the sharpest thing in the skill.
   It is `False` for a reason, with a precedent, and there is a test.
 - Changing a model or effort changes what runs cost. `ADVERSARIAL` is
-  `gpt-6-astra` at `high` deliberately, and `collaborate` is deliberately not.
+  `gpt-6-astra` at `high` deliberately.
+- Every pattern is blind. A pattern that takes our view withholds nothing, so
+  its citation shows nothing a reader can rely on. That is why `collaborate`
+  was removed.
 
 ## Templates
 

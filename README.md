@@ -21,22 +21,22 @@ a result you can cite.
 
 ## What makes it different
 
-Five named patterns for using a second AI agent, running on Codex or opencode
+Four named patterns for using a second AI agent, running on Codex or opencode
 behind one provider layer.
 
 The patterns are the product. The reason this is not a wrapper around
 `codex exec` is the **withholding rule**: a second opinion that has already been
 told your conclusion is not a second opinion, it is agreement with extra steps.
 
-Three of the five patterns refuse to carry your view at all, and the refusal is
-enforced in code rather than requested in prose.
+Every pattern refuses to carry your view at all, and the refusal is enforced in
+code rather than requested in prose. For thinking out loud with a peer who sees
+your view, use a persistent advisor session instead.
 
 | Pattern | Use it when | It is not told |
 |---|---|---|
 | `red-team` | You want the idea killed if it deserves killing | Your evidence, and by default the repository itself |
 | `second-opinion` | You have a view and want one reached without it | Your conclusion, draft or findings |
 | `verify` | Work is finished and about to ship | Whether anyone thinks it passes |
-| `collaborate` | You are thinking out loud and want a peer | Nothing - it gets the full picture |
 | `panel` | A hard call where the trade-off is the answer | Your view, and each other's answers |
 
 ## Install
@@ -196,7 +196,7 @@ Each has a test. `AGENTS.md` is the file to read before changing anything.
    has this skill installed; a brief saying "second opinion" trips its copy,
    which tries to delegate to a third agent and returns an apology instead of a
    review.
-4. **No write sandbox without a decision in that run.** All five patterns are
+4. **No write sandbox without a decision in that run.** All four patterns are
    read-only by default.
 
 ## What it will not do

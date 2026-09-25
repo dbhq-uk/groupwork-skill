@@ -140,7 +140,6 @@ class Provider:
     models: list = []
     efforts: list = []
     sandboxes: list = []
-    can_resume = False
 
     #: Set by a provider that has no way to run without repository access.
     #: red-team defaults to withholding the repo entirely, so a provider that
@@ -169,7 +168,6 @@ class Provider:
             "models": list(self.models),
             "efforts": list(self.efforts),
             "sandboxes": list(self.sandboxes),
-            "can_resume": self.can_resume,
             "can_withhold_repo": self.can_withhold_repo,
             "experimental": self.experimental,
         }
@@ -177,10 +175,6 @@ class Provider:
     def run(self, brief_path, out_path, model, effort, sandbox, cwd, repo_access=True):
         """Run the brief. Write the response to out_path. Raise on failure."""
         raise NotImplementedError
-
-    def resume(self, brief_path, out_path, cwd):
-        """Continue the last session. Providers that cannot, raise."""
-        raise ProviderError(f"{self.name} cannot resume a session")
 
     # --- shared helpers -----------------------------------------------------
 

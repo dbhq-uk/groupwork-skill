@@ -73,9 +73,9 @@ def citation(run):
         "red-team": "Red team",
         "second-opinion": "Second opinion",
         "verify": "Verification pass",
-        "collaborate": "Worked through with",
         "panel": "Panel member",
-        # Retired, but its runs are still in older ledgers and still cite.
+        # Retired, but their runs are still in older ledgers and still cite.
+        "collaborate": "Worked through with",
         "debate": "Debated with",
     }.get(run["pattern"], run["pattern"])
     if run["pattern"] == "panel" and run.get("panel_round"):
