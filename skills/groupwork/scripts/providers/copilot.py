@@ -37,7 +37,7 @@ GITHUB_TOKEN in that order, so a machine with a working `gh` is already set up.
 import os
 import subprocess
 
-from .base import Provider, ProviderError
+from .base import Provider, ProviderError, spawn
 
 
 class Copilot(Provider):
@@ -104,17 +104,13 @@ class Copilot(Provider):
         with open(brief_path, "rb") as stdin, open(out_path, "wb") as out:
             log = open(log_path, "wb") if log_path else subprocess.DEVNULL
             try:
-                done = subprocess.run(
-                    argv, stdin=stdin, stdout=out, stderr=log,
+                returncode = spawn(
+                    self.name, argv, stdin=stdin, stdout=out, stderr=log,
                     cwd=cwd, timeout=timeout,
                 )
-            except subprocess.TimeoutExpired:
-                raise ProviderError(
-                    f"copilot: timed out after {timeout}s"
-                ) from None
             finally:
                 if log is not subprocess.DEVNULL:
                     log.close()
-        if done.returncode != 0:
-            raise ProviderError(f"copilot: exited {done.returncode}; see the log")
-        return done.returncode
+        if returncode != 0:
+            raise ProviderError(f"copilot: exited {returncode}; see the log")
+        return returncode

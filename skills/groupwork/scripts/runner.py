@@ -131,7 +131,7 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     if not repo_access:
         workdir = _isolated_cwd()
 
-    timeout = timeout or patterns.TIMEOUTS.get(used_effort, 600)
+    timeout = timeout or patterns.TIMEOUTS.get(used_effort, patterns.TIMEOUTS["high"])
 
     run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
     runs = _state_dir()

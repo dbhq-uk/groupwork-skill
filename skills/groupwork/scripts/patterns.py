@@ -104,10 +104,12 @@ BLIND = {name for name, spec in PATTERNS.items() if spec["blind"]}
 
 #: How long to wait, by effort. Codex writes its output only at completion, so
 #: a run killed early is not a partial result - it is nothing at all, silently.
+#: `high` was 600 and real high-effort runs went past it. `run --timeout`
+#: overrides any of these for one run.
 TIMEOUTS = {
     "low": 150,
     "medium": 300,
-    "high": 600,
+    "high": 1200,
     "xhigh": 1200,
     "max": 1800,
     "ultra": 1800,

@@ -73,6 +73,12 @@ than implying a check that never happened.
 
 Use `--dry-run` to read the brief before spending on it.
 
+Runs are slow. The time limit follows the effort: 20 minutes at `high`, 30 at
+`max`. `--timeout N` sets a different limit, in seconds, for one run. A run
+that hits its limit is stopped completely, including every process the CLI
+started, and nothing is salvaged, because Codex writes its answer only at the
+end.
+
 ### Before you run
 
 The counterpart is sandboxed with no network and no access to this

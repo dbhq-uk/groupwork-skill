@@ -8,6 +8,10 @@ import hashlib
 import json
 import os
 import pathlib
+import signal
+import subprocess
+import sys
+import time
 
 import pytest
 
@@ -327,7 +331,7 @@ def test_a_host_that_cannot_start_the_sandbox_is_told_so_not_left_guessing(
 
 def test_each_effort_maps_to_the_documented_timeout():
     assert patterns.TIMEOUTS == {
-        "low": 150, "medium": 300, "high": 600,
+        "low": 150, "medium": 300, "high": 1200,
         "xhigh": 1200, "max": 1800, "ultra": 1800,
     }
 
@@ -335,6 +339,143 @@ def test_each_effort_maps_to_the_documented_timeout():
 def test_the_timeout_follows_the_effort_actually_used():
     go(effort="low")
     assert Stub.last_call["timeout"] == 150
+
+
+# A fake CLI that starts a long-lived grandchild, the way the Codex npm wrapper
+# starts the native binary, records its pid and then waits on it.
+FAKE_CLI_WITH_GRANDCHILD = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "fake-cli 1.0"; exit 0; fi
+cat > /dev/null
+sleep 300 &
+echo $! > "$GW_GRANDCHILD_PIDFILE"
+wait
+"""
+
+# The same, with SIGTERM ignored by the wrapper and the grandchild alike.
+FAKE_CLI_IGNORING_TERM = FAKE_CLI_WITH_GRANDCHILD.replace(
+    "cat > /dev/null", "trap '' TERM\ncat > /dev/null"
+)
+
+
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    stat = pathlib.Path(f"/proc/{pid}/stat")
+    try:
+        return stat.read_text().split(") ", 1)[1][0] != "Z"
+    except (OSError, IndexError):
+        return True
+
+
+def _wait_gone(pid, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not _alive(pid):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+@pytest.mark.parametrize("name", sorted(providers.REGISTRY))
+@pytest.mark.parametrize("script", ["grandchild", "ignores-term"])
+def test_a_timeout_stops_the_grandchild_too(name, script, tmp_path, monkeypatch):
+    """Killing only the direct child leaves the real CLI running, and billing.
+
+    The Codex npm wrapper forwards SIGTERM to the native binary but cannot
+    forward SIGKILL. So the whole process group gets SIGTERM, then SIGKILL for
+    anything still there after a short grace period.
+    """
+    from providers import base
+    monkeypatch.setattr(base, "GRACE_S", 0.5)
+    body = FAKE_CLI_WITH_GRANDCHILD if script == "grandchild" else FAKE_CLI_IGNORING_TERM
+    install_fake_cli(tmp_path / "bin", name, body)
+    pidfile = tmp_path / "grandchild.pid"
+    monkeypatch.setenv("GW_GRANDCHILD_PIDFILE", str(pidfile))
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    pid = None
+    try:
+        with pytest.raises(runner.RunFailed, match="timed out"):
+            runner.run("verify", "a brief", provider_name=name,
+                       cwd=str(tmp_path), timeout=1)
+        pid = int(pidfile.read_text())
+        assert _wait_gone(pid), "the grandchild outlived the timeout"
+    finally:
+        if pid is None and pidfile.exists():
+            pid = int(pidfile.read_text())
+        if pid is not None and _alive(pid):
+            os.kill(pid, signal.SIGKILL)
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT])
+def test_stopping_groupwork_stops_the_run_it_started(sig, tmp_path):
+    """The child leads its own session, so a signal to groupwork must be passed on.
+
+    Otherwise a host that stops groupwork would orphan the CLI it started, which
+    is the same bill this change exists to stop.
+    """
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CLI_WITH_GRANDCHILD)
+    pidfile = tmp_path / "grandchild.pid"
+    env = dict(os.environ, PATH=f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+               GROUPWORK_HOME=str(tmp_path / "home"),
+               GW_GRANDCHILD_PIDFILE=str(pidfile))
+    script = pathlib.Path(runner.__file__).with_name("groupwork.py")
+    proc = subprocess.Popen(
+        [sys.executable, str(script), "run", "verify", "--subject", "a thing",
+         "--no-prior-view", "--provider", "codex", "--timeout", "60"],
+        env=env, cwd=str(tmp_path),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    pid = None
+    try:
+        deadline = time.monotonic() + 10
+        while not (pidfile.exists() and pidfile.read_text().strip()):
+            assert time.monotonic() < deadline, "the fake CLI never started"
+            time.sleep(0.05)
+        pid = int(pidfile.read_text())
+        proc.send_signal(sig)
+        proc.wait(timeout=20)
+        assert _wait_gone(pid), "the grandchild outlived groupwork"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        if pid is not None and _alive(pid):
+            os.kill(pid, signal.SIGKILL)
+
+
+FAKE_CODEX_SLOW_WITH_BWRAP_NOISE = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+cat > /dev/null
+echo "bwrap: a sandboxed command failed partway through the run" >&2
+sleep 300
+"""
+
+
+def test_a_red_team_timeout_is_reported_as_a_timeout(tmp_path, monkeypatch):
+    """Sandbox noise in the log must not turn a timeout into a start failure."""
+    from providers import base
+    monkeypatch.setattr(base, "GRACE_S", 0.5)
+    install_fake_cli(tmp_path / "bin", "codex", FAKE_CODEX_SLOW_WITH_BWRAP_NOISE)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    with pytest.raises(runner.RunFailed) as caught:
+        runner.run("red-team", "a brief", provider_name="codex",
+                   cwd=str(tmp_path), timeout=1)
+    assert "timed out" in str(caught.value)
+    assert "--repo-access" not in str(caught.value)
+
+
+def test_run_timeout_reaches_the_provider():
+    code = groupwork.main(["run", "second-opinion", "--subject", "a thing",
+                           "--no-prior-view", "--provider", "stub",
+                           "--timeout", "42"])
+    assert code == 0
+    assert Stub.last_call["timeout"] == 42
+
+
+def test_the_high_timeout_outlasts_a_real_high_effort_run():
+    """Real high-effort runs have taken more than ten minutes."""
+    assert patterns.TIMEOUTS["high"] >= 1200
 
 
 # --- Provenance --------------------------------------------------------------
