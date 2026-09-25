@@ -39,6 +39,24 @@ class RunTimedOut(ProviderError):
 #: How long a stopped run gets to exit after SIGTERM before it is SIGKILLed.
 GRACE_S = 10
 
+#: Set in every provider child's environment. groupwork.py refuses to start a
+#: run while it is set, so a counterpart that reaches for groupwork anyway -
+#: whatever the brief said - gets a refusal instead of a third agent. The
+#: trigger-phrase check keeps the words out of the brief; this does not depend
+#: on wording at all.
+DEPTH_ENV = "GROUPWORK_DEPTH"
+
+
+def child_env(env=None):
+    """The environment for a provider child, marked as inside a groupwork run."""
+    env = dict(os.environ if env is None else env)
+    try:
+        depth = int(env.get(DEPTH_ENV) or 0)
+    except ValueError:
+        depth = 0
+    env[DEPTH_ENV] = str(depth + 1)
+    return env
+
 
 class _Terminated(SystemExit):
     """groupwork itself was told to stop while a run was in flight."""
@@ -58,8 +76,8 @@ def spawn(name, argv, *, stdin, stdout, stderr, cwd, timeout, env=None):
     ProviderError on a timeout.
     """
     proc = subprocess.Popen(
-        argv, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd, env=env,
-        start_new_session=True,
+        argv, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd,
+        env=child_env(env), start_new_session=True,
     )
     try:
         with _stop_group_on_signal():

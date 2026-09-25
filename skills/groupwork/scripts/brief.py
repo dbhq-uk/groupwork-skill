@@ -54,10 +54,20 @@ def load_template(name):
     return path.read_text(encoding="utf-8")
 
 
+def _trigger(phrase):
+    """A phrase as a whole-word pattern, any spaces or hyphens between words."""
+    words = [re.escape(word) for word in re.split(r"[\s-]+", phrase.strip()) if word]
+    return re.compile(r"\b" + r"[\s-]+".join(words) + r"\b", re.IGNORECASE)
+
+
 def find_triggers(text):
-    """Return every trigger phrase present in the text, case-insensitively."""
-    lowered = text.lower()
-    return [p for p in patterns.TRIGGER_PHRASES if p.lower() in lowered]
+    """Return every trigger phrase present in the text, as whole words.
+
+    A substring match refused "counterparts" for "counterpart" and would refuse
+    "groupworking" for "groupwork". Only the phrase itself counts.
+    """
+    return [phrase for phrase in patterns.TRIGGER_PHRASES
+            if _trigger(phrase).search(text)]
 
 
 #: How many consecutive words two texts must share before it counts as a leak.

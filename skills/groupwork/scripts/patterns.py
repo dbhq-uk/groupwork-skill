@@ -134,19 +134,23 @@ EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra"]
 #: should be. Every brief says instead, in plain words, that the reader is the
 #: sole reviewer and must not invoke any skill, agent or CLI.
 #:
-#: tests/test_guards.py asserts this list covers every trigger phrase in
-#: SKILL.md's own frontmatter, so the two cannot drift apart.
+#: Exactly groupwork's own triggers: the phrases quoted in SKILL.md's
+#: description, and nothing else. "counterpart" and "blind review" were here
+#: once, were never triggers, and refused ordinary subjects such as a
+#: counterpart bank. brief.find_triggers() matches on word boundaries, with
+#: any spaces or hyphens between the words, so "red team" also catches
+#: "red-team" and "second opinion" catches "second-opinion".
+#:
+#: tests/test_guards.py asserts this list is the same set as the phrases in
+#: SKILL.md's frontmatter, so the two cannot drift apart.
 TRIGGER_PHRASES = [
     "groupwork",
     "second opinion",
     "red team",
-    "red-team",
     "adversarial review",
     "cross-check this",
     "what does codex think",
     "what does claude think",
-    "blind review",
-    "counterpart",
 ]
 
 

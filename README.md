@@ -4,7 +4,7 @@
 
 # groupwork
 
-**A second agent on the work - as an adversary, or as a partner**
+**Blind, independent review by a second model, with a record you can cite**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-Plugin-blueviolet)](https://code.claude.com/docs/en/plugins)
@@ -16,8 +16,9 @@ A free, open-source tool by [DBHQ](https://dbhq.uk) - documented at [skills.dbhq
 
 ---
 
-Put a second agent on the work - as an adversary or as a partner - and get back
-a result you can cite.
+Blind, independent review by a second model, before something ships, with a
+citation of what it was not shown. Not a place to think out loud with a peer who
+can see your view: use a persistent advisor session for that.
 
 ## What makes it different
 

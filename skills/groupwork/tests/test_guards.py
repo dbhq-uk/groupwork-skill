@@ -231,18 +231,43 @@ def test_a_critique_needs_two_answers_to_compare():
                     answers=["only one"])
 
 
-def test_trigger_list_covers_every_phrase_in_the_skill_frontmatter():
-    """The list and SKILL.md's own triggers must not drift apart.
+def test_the_trigger_list_is_exactly_the_phrases_in_the_skill_frontmatter():
+    """The list and SKILL.md's own triggers must not drift apart, either way.
 
-    If a new trigger phrase is added to the description and not here, a brief
-    quoting it sails through and the far end delegates.
+    A trigger in the description and not here lets a brief quoting it sail
+    through, and the far end delegates. A phrase here and not in the
+    description is not a trigger at all, and only refuses ordinary subjects.
     """
     frontmatter = re.match(r"^---\n(.*?)\n---", SKILL_MD.read_text(encoding="utf-8"), re.S)
     assert frontmatter, "SKILL.md has no frontmatter"
-    quoted = re.findall(r'"([^"]+)"', frontmatter.group(1))
+    quoted = {q.lower() for q in re.findall(r'"([^"]+)"', frontmatter.group(1))}
     known = {p.lower() for p in patterns.TRIGGER_PHRASES}
-    missing = [q for q in quoted if q.lower() not in known]
-    assert not missing, f"trigger phrases in SKILL.md but not in TRIGGER_PHRASES: {missing}"
+    assert quoted - known == set(), f"in SKILL.md but not in TRIGGER_PHRASES: {quoted - known}"
+    assert known - quoted == set(), f"in TRIGGER_PHRASES but not in SKILL.md: {known - quoted}"
+
+
+@pytest.mark.parametrize("subject", [
+    "our exposure to the counterpart bank",
+    "counterparties and counterparts in the swap book",
+    "the blind review stage of the hiring policy",
+    "the red teams in the league table",
+    "a groupworking session for the new starters",
+])
+def test_an_ordinary_subject_is_not_mistaken_for_a_trigger(subject):
+    """Only groupwork's own phrases, and only as whole words."""
+    brief.build("second-opinion", subject=subject, no_prior_view=True)
+
+
+@pytest.mark.parametrize("subject", [
+    "Red-Team this plan",
+    "a SECOND-OPINION on the diff",
+    "a second\nopinion on the diff",
+    "what does  Codex think of it",
+    "the groupwork-skill repository",
+])
+def test_a_trigger_is_caught_however_it_is_spaced(subject):
+    with pytest.raises(brief.BriefError, match="re-trigger"):
+        brief.build("second-opinion", subject=subject, no_prior_view=True)
 
 
 # --- Rule 4: no write sandbox without an explicit per-run decision -----------

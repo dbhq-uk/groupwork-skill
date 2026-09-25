@@ -10,11 +10,13 @@ sys.path.insert(0, str(SCRIPTS))
 
 @pytest.fixture(autouse=True)
 def _no_outside_choices(monkeypatch):
-    """A model override or a Codex host in the caller's shell must not leak in."""
+    """A model override, a Codex host or a groupwork run around the tests
+    must not leak in."""
     for name in list(os.environ):
         if name.startswith("GROUPWORK_") and name.endswith("_MODEL"):
             monkeypatch.delenv(name)
-    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED"):
+    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED",
+                 "GROUPWORK_DEPTH"):
         monkeypatch.delenv(name, raising=False)
 
 
