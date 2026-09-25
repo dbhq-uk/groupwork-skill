@@ -1,15 +1,16 @@
 ---
 name: groupwork
 description: >-
-  Put a second agent on the work - as an adversary or as a partner - and get
-  back a result you can cite. Four named patterns: red-team attacks an idea
-  without being shown your evidence, second-opinion judges your material
-  without being shown your conclusion, verify rules on finished work against
-  stated constraints, and panel puts one hard question to several models at
-  once, each answering alone. Runs on Codex or opencode behind one provider
-  layer. Use when the user says "groupwork", "second opinion",
-  "red team", "adversarial review", "cross-check this", "what does codex think",
-  "what does claude think", or wants independent eyes before something ships.
+  Blind, independent review by a second model, before something ships, with a
+  citation of what it was not shown. Four patterns: red-team attacks an idea
+  without your evidence, second-opinion judges your material without your
+  conclusion, verify rules on finished work against stated constraints, and
+  panel puts one hard question to several models, each answering alone. Every
+  run is logged and cited from the log. Runs on Codex or opencode. Use when the
+  user says "groupwork", "second opinion", "red team", "adversarial review",
+  "cross-check this", "what does codex think", "what does claude think", or
+  wants independent eyes before something ships. Not for thinking out loud with
+  a peer who sees your view: use a persistent advisor session for that.
 license: MIT
 ---
 

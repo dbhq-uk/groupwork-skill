@@ -57,14 +57,23 @@ opinion" fires its copy of the protocol, which tries to delegate to a third
 agent, fails on auth or the read-only sandbox, and returns an apology where the
 review should be. You pay for the run and get a polite note.
 
-`patterns.TRIGGER_PHRASES` is the list; `brief.build()` refuses any brief
-containing one.
+`patterns.TRIGGER_PHRASES` is the list, and it is exactly the phrases quoted in
+the `SKILL.md` description. Nothing else goes in it: a word that is not a
+trigger only refuses ordinary subjects, as "counterpart" once refused a brief
+about a counterpart bank. `brief.build()` refuses any brief containing one as
+whole words, with any spaces or hyphens between them, so "red team" also
+catches "red-team". A test asserts the list and the quoted phrases are the same
+set, so a trigger added in one place and not the other fails CI.
 
 A panel's critique round is the one place a model's own words go into a brief.
 They go in after the check, never before it. An answer that happens to use a
 trigger phrase must not refuse a round when the first round has already been
-paid for, and the caller cannot reword a model's answer. A test asserts the list covers every phrase quoted in `SKILL.md`
-frontmatter, so adding a trigger there without adding it here fails CI.
+paid for, and the caller cannot reword a model's answer.
+
+The phrases are the first guard. The second does not depend on wording: every
+provider child is started with `GROUPWORK_DEPTH` in its environment, by
+`spawn()` in `providers/base.py`, and `groupwork.py` refuses `run` and `panel`
+while it is set. A new provider gets this by using `spawn()`.
 
 ### 4. No write sandbox without a decision in that run
 

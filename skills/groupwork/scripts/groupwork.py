@@ -16,6 +16,7 @@ to configure and no credential to store.
 
 import argparse
 import contextlib
+import os
 import pathlib
 import sys
 
@@ -28,6 +29,7 @@ import patterns  # noqa: E402
 import provenance  # noqa: E402
 import providers  # noqa: E402
 import runner  # noqa: E402
+from providers.base import DEPTH_ENV  # noqa: E402
 
 
 def cmd_providers(args):
@@ -323,7 +325,7 @@ def _seconds(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="groupwork",
-        description="Put a second agent on the work - as an adversary or a partner.",
+        description="Blind, independent review by a second model, with a record you can cite.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -414,6 +416,12 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     args = parser.parse_args(argv)
     args.argv = argv
+    if args.command in ("run", "panel") and os.environ.get(DEPTH_ENV):
+        print(f"Refused: this is already inside a groupwork run ({DEPTH_ENV} is "
+              f"set). You are the reviewer the brief was written for. Answer it "
+              f"yourself, directly, and do not hand it to another agent.",
+              file=sys.stderr)
+        return 2
     return args.func(args)
 
 

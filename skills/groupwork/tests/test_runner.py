@@ -419,6 +419,53 @@ def test_outside_codex_there_is_no_family_note(capsys):
     assert "same family" not in capsys.readouterr().err
 
 
+# --- No groupwork inside a groupwork run -------------------------------------
+
+@pytest.mark.parametrize("command", [
+    ["run", "second-opinion", "--subject", "a thing", "--no-prior-view",
+     "--provider", "stub"],
+    ["panel", "--subject", "queue or cron", "--no-prior-view",
+     "--members", "stub,stub"],
+])
+def test_run_and_panel_refuse_inside_a_groupwork_run(command, capsys, monkeypatch):
+    monkeypatch.setenv("GROUPWORK_DEPTH", "1")
+    Stub.last_call = {}
+    assert groupwork.main(command) == 2
+    assert "GROUPWORK_DEPTH" in capsys.readouterr().err
+    assert Stub.last_call == {}, "a provider was called anyway"
+    assert provenance.runs() == []
+
+
+# A fake that reports the depth it was given, and what a groupwork started from
+# inside it does, as a counterpart reaching for the skill would.
+FAKE_NESTED = """#!/bin/bash
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then out="$arg"; fi
+  prev="$arg"
+done
+cat > /dev/null
+"$GW_PYTHON" "$GW_SCRIPT" run second-opinion --subject "a thing" \
+  --no-prior-view --dry-run > /dev/null 2>&1
+answer="DEPTH ${GROUPWORK_DEPTH:-unset} NESTED $?"
+if [ -n "$out" ]; then printf '%s\n' "$answer" > "$out"; else printf '%s\n' "$answer"; fi
+"""
+
+
+@pytest.mark.parametrize("name", sorted(providers.REGISTRY))
+def test_every_provider_child_refuses_to_start_another_run(name, tmp_path, monkeypatch):
+    """The brief asks it not to. This makes it a rule rather than a request."""
+    install_fake_cli(tmp_path / "bin", name, FAKE_NESTED)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:{os.environ['PATH']}")
+    monkeypatch.setenv("GW_PYTHON", sys.executable)
+    monkeypatch.setenv("GROUPWORK_HOME", str(tmp_path / "nested-home"))
+    monkeypatch.setenv("GW_SCRIPT", str(pathlib.Path(runner.__file__).with_name("groupwork.py")))
+    result = runner.run("second-opinion", "a brief", provider_name=name, cwd=str(tmp_path))
+    assert "DEPTH 1 NESTED 2" in result["output"], result["output"]
+
+
 def test_unknown_provider_names_the_real_ones():
     with pytest.raises(ValueError, match="Available"):
         providers.get("nonesuch")
