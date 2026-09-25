@@ -229,6 +229,31 @@ file edits, bash (apart from read-only `git`), web fetch and search, sub-agents,
 skills and directories outside the working one. opencode enforces those itself,
 which is weaker than a kernel sandbox. The citation names the provider.
 
+**Every pattern asks for `gpt-6-astra` at `high` effort.** That model needs
+Codex CLI 0.153.0 or newer and an account with access to it. On an older Codex,
+a run that asks for it is refused before it starts, naming the model and the
+version it needs. Without access, choose another model once rather than on
+every run:
+
+```bash
+export GROUPWORK_CODEX_MODEL=gpt-5.6-sol
+```
+
+or in `~/.dbhq/groupwork/config.json`:
+
+```json
+{"model": {"codex": "gpt-5.6-sol"}}
+```
+
+The setting is per provider (`GROUPWORK_OPENCODE_MODEL` and `"opencode"` for
+opencode), because a model name only means something to its own CLI. `--model`
+beats both, and the environment beats the file. The citation names the model
+that actually ran. A run that fails names the model it asked for.
+
+If groupwork is running inside Codex and Codex is answering too, it says so:
+the counterpart is the same model family as the agent asking, which is a weaker
+second look.
+
 **There is no `copilot` provider for now.** An adapter exists in the source,
 but it has never been run against the real CLI and could not complete a run, so
 it is not registered. It comes back once it has been verified.

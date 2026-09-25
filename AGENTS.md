@@ -107,7 +107,10 @@ citation means, so:
 - Changing `repo_access` on `red-team` removes the sharpest thing in the skill.
   It is `False` for a reason, with a precedent, and there is a test.
 - Changing a model or effort changes what runs cost. `ADVERSARIAL` is
-  `gpt-6-astra` at `high` deliberately.
+  `gpt-6-astra` at `high` deliberately. A user without it sets
+  `GROUPWORK_<PROVIDER>_MODEL` or `config.json` in the state directory, and the
+  citation records the model that ran. A model a CLI version cannot run goes
+  in that provider's `unreachable`, so the run is refused before it starts.
 - Every pattern is blind. A pattern that takes our view withholds nothing, so
   its citation shows nothing a reader can rely on. That is why `collaborate`
   was removed.

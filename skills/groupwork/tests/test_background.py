@@ -25,7 +25,7 @@ SCRIPT = pathlib.Path(runner.__file__).with_name("groupwork.py")
 # A fake codex that says it has started, then waits for a release file before
 # answering. So the test, not the clock, decides when the run finishes.
 FAKE_CODEX_GATED = """#!/bin/bash
-if [ "$1" = "--version" ]; then echo "codex-cli 0.0.0"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "codex-cli 0.154.0"; exit 0; fi
 out=""
 prev=""
 for arg in "$@"; do

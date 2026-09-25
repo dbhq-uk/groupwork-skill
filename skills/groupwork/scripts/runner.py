@@ -18,6 +18,7 @@ Every rule below is a failure someone has actually had, not a precaution.
 """
 
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -149,9 +150,14 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
 
     wanted_effort = effort or spec["effort"]
     used_effort, downgraded = patterns.resolve_effort(wanted_effort, caps["efforts"])
-    used_model = model or _pick_model(
+    used_model = model or model_override(provider.name) or _pick_model(
         provider.name, spec["model"], caps["models"], caps.get("default_model")
     )
+    # Refused here, before the ledger line, so a run that could never have
+    # started does not turn up in `history` as one that failed.
+    blocked = caps.get("unreachable", {}).get(used_model)
+    if blocked:
+        raise RunFailed(blocked)
 
     if repo_access is None:
         repo_access = spec["repo_access"]
@@ -227,8 +233,11 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         _finish(provenance, record, started, "timed-out", str(exc))
         raise RunFailed(str(exc)) from None
     except providers.ProviderError as exc:
-        _finish(provenance, record, started, "failed", str(exc))
-        raise RunFailed(str(exc)) from None
+        # Named, because a model the account cannot use fails like any other
+        # error, and "exited 1" alone sends the user to the wrong place.
+        reason = f"{exc} The run asked for {used_model} at {used_effort} effort."
+        _finish(provenance, record, started, "failed", reason)
+        raise RunFailed(reason) from None
     except BaseException:
         _finish(provenance, record, started, "stopped",
                 "groupwork was stopped while the run was in flight")
@@ -263,6 +272,32 @@ def _finish(provenance, record, started, status, error=None):
         error=error,
     )
     provenance.record(record)
+
+
+def model_override(provider):
+    """The model the user has chosen for this provider, or None.
+
+    `GROUPWORK_<PROVIDER>_MODEL` in the environment, else `model.<provider>` in
+    config.json in the state directory. `--model` beats both. Per provider,
+    because a model name only means something to the CLI it is written for.
+
+    A config file that cannot be read refuses the run. Ignoring it would run
+    the pattern's model, which is very likely the one the user set this to get
+    away from.
+    """
+    value = os.environ.get(f"GROUPWORK_{provider.upper()}_MODEL", "").strip()
+    if value:
+        return value
+    path = STATE / "config.json"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        raise RunFailed(f"{path} could not be read, so no run was started: {exc}") from None
+    models = config.get("model") if isinstance(config, dict) else None
+    value = models.get(provider) if isinstance(models, dict) else None
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _pick_model(provider, wanted, supported, default=None):
