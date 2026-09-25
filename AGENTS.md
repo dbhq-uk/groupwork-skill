@@ -106,6 +106,14 @@ Never claim a capability the CLI does not have. The runner passes capabilities
 straight into the provenance record, so an overstated `capabilities()` becomes
 an overstated citation.
 
+**A shell allowlist is exact commands or nothing.** `git diff*` reads as "the
+safe read-only subcommands" and means "any flag after `git diff`", which on 25
+Sep 2026 covered `--no-index` (read any path on disk), `--output=` (write a
+file with `edit` denied) and `git grep -O` (run a program). Denylisting flags
+loses: git has more of them than anyone will enumerate. Allow the exact command
+with no argument, or allow nothing, and give a pattern that withholds the
+repository no shell at all.
+
 ## Changing a pattern
 
 `patterns.py` is the product. A change there is a change to what a groupwork
