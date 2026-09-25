@@ -104,7 +104,7 @@ def citation(run):
             f". Ran through groupwork's experimental {run['provider']} adapter, "
             f"which has not been verified against the real CLI"
         )
-    if run["effort_downgraded"]:
+    if run["effort_downgraded"] or run["effort"] != run.get("effort_requested", run["effort"]):
         detail += (
             f". Ran at {run['effort']} effort, not the {run['effort_requested']} "
             f"this pattern asks for - {run['provider']} cannot reach it"

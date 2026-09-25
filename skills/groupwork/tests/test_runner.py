@@ -53,6 +53,7 @@ class Stub(Provider):
             "model": model, "effort": effort, "sandbox": sandbox,
             "cwd": cwd, "repo_access": repo_access, "timeout": timeout,
             "brief": pathlib.Path(brief_path).read_text(encoding="utf-8"),
+            "cwd_listing": sorted(os.listdir(cwd)) if os.path.isdir(cwd) else None,
         }
         pathlib.Path(out_path).write_text(Stub.payload, encoding="utf-8")
         return 0
@@ -466,6 +467,23 @@ def test_every_provider_child_refuses_to_start_another_run(name, tmp_path, monke
     assert "DEPTH 1 NESTED 2" in result["output"], result["output"]
 
 
+def test_the_codex_installer_links_every_directory_the_skill_reads(tmp_path):
+    """templates was missing, and only worked because brief.py resolved a symlink."""
+    repo = pathlib.Path(runner.__file__).resolve().parents[3]
+    done = subprocess.run(
+        ["bash", str(repo / "install-codex.sh")],
+        env=dict(os.environ, CODEX_SKILLS_DIR=str(tmp_path)),
+        capture_output=True, text=True, timeout=60,
+    )
+    assert done.returncode == 0, done.stderr
+    installed = tmp_path / "groupwork"
+    source = repo / "skills" / "groupwork"
+    for sub in ("scripts", "templates", "tests"):
+        assert (installed / sub).is_symlink(), f"{sub} is not linked"
+        assert (installed / sub).resolve() == (source / sub).resolve()
+    assert "${CLAUDE_SKILL_DIR}" not in (installed / "SKILL.md").read_text(encoding="utf-8")
+
+
 def test_unknown_provider_names_the_real_ones():
     with pytest.raises(ValueError, match="Available"):
         providers.get("nonesuch")
@@ -488,6 +506,20 @@ def test_the_record_names_the_effort_actually_used():
     assert "Ran at high effort, not the ultra" in provenance.citation(result)
 
 
+def test_a_missing_effort_falls_to_the_nearest_level_below_not_the_ceiling():
+    assert patterns.resolve_effort("xhigh", ["low", "medium", "high", "max"]) == ("high", True)
+
+
+def test_a_missing_effort_with_nothing_below_goes_up_and_is_not_called_a_downgrade(
+        monkeypatch):
+    assert patterns.resolve_effort("low", ["medium", "high"]) == ("medium", False)
+    monkeypatch.setattr(Stub, "efforts", ["medium", "high"])
+    result = go(effort="low")
+    assert result["effort"] == "medium"
+    assert result["effort_downgraded"] is False
+    assert "Ran at medium effort, not the low" in provenance.citation(result)
+
+
 def test_an_effort_the_provider_has_is_not_downgraded():
     effort, downgraded = patterns.resolve_effort("medium", Stub.efforts)
     assert (effort, downgraded) == ("medium", False)
@@ -499,9 +531,21 @@ def test_red_team_runs_somewhere_with_no_repository_in_it():
     """'Independent of our retrieval' has to be a fact, not an intention."""
     result = go("red-team")
     assert result["repo_access"] is False
+    assert Stub.last_call["cwd_listing"] == [], "red-team was given a non-empty directory"
+    assert pathlib.Path(Stub.last_call["cwd"]).name.startswith("groupwork-norepo-")
+
+
+@pytest.mark.parametrize("payload", ["an answer", ""])
+def test_the_empty_directory_is_removed_however_the_run_ends(payload):
+    """Every red-team run, and every test run, used to leave one behind."""
+    Stub.payload = payload
+    try:
+        go("red-team")
+    except runner.RunFailed:
+        assert payload == ""
     workdir = pathlib.Path(Stub.last_call["cwd"])
-    assert workdir.exists()
-    assert list(workdir.iterdir()) == [], "red-team was given a non-empty directory"
+    assert Stub.last_call["cwd_listing"] == []
+    assert not workdir.exists(), f"{workdir} was left behind"
 
 
 def test_red_team_can_be_given_the_repo_deliberately():

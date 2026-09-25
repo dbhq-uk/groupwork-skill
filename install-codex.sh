@@ -34,7 +34,7 @@ for src in "$SCRIPT_DIR"/skills/*/; do
   # does not survive as a dangling link that still looks installed. Only
   # symlinks are removed, so a real SKILL.md is never at risk.
   find "$target" -mindepth 1 -maxdepth 1 -type l -exec rm -f {} +
-  for sub in scripts references tests; do
+  for sub in scripts references templates tests; do
     [ -d "$src/$sub" ] && ln -sfn "$src/$sub" "$target/$sub"
   done
   chmod +x "$src"/scripts/*.py 2>/dev/null || true

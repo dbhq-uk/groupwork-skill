@@ -9,7 +9,8 @@ Every rule below is a failure someone has actually had, not a precaution.
     exits 0 having written nothing. Both look like "the reviewer found no
     issues" unless something refuses to read them that way.
   - The effort actually used is recorded, not the effort asked for. A provider
-    that cannot reach `high` runs at its ceiling and the record says so.
+    that cannot reach `high` runs at the nearest level below it, and the
+    record says so.
   - Nothing is retried automatically. A failed adversarial run costs money and
     a retry that silently changes the conditions makes the record meaningless.
   - Every run is in the ledger, not only the ones that worked: a "started"
@@ -22,6 +23,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import tempfile
 import time
 import uuid
@@ -162,8 +164,6 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     if repo_access is None:
         repo_access = spec["repo_access"]
     workdir = cwd or os.getcwd()
-    if not repo_access:
-        workdir = _isolated_cwd()
 
     timeout = timeout or patterns.TIMEOUTS.get(used_effort, patterns.TIMEOUTS["high"])
 
@@ -223,10 +223,13 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
     # process is killed outright, the "started" line is what is left.
     import provenance  # here, not at the top: provenance reads STATE from here
     provenance.record(record)
+    # Made here and removed however the run ends, so no run leaves an empty
+    # groupwork-norepo-* directory behind.
+    isolated = None if repo_access else _isolated_cwd()
     try:
         provider.run(
             str(brief_path), str(out_path), used_model, used_effort, sandbox,
-            workdir, repo_access=repo_access, log_path=str(log_path),
+            isolated or workdir, repo_access=repo_access, log_path=str(log_path),
             timeout=timeout,
         )
     except RunTimedOut as exc:
@@ -242,6 +245,9 @@ def run(pattern_name, brief_text, *, provider_name=None, cwd=None,
         _finish(provenance, record, started, "stopped",
                 "groupwork was stopped while the run was in flight")
         raise
+    finally:
+        if isolated:
+            shutil.rmtree(isolated, ignore_errors=True)
 
     text = out_path.read_text(encoding="utf-8") if out_path.exists() else ""
     if not text.strip():
