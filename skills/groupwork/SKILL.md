@@ -258,9 +258,8 @@ If groupwork is running inside Codex and Codex is answering too, it says so:
 the counterpart is the same model family as the agent asking, which is a weaker
 second look.
 
-**There is no `copilot` provider for now.** An adapter exists in the source,
-but it has never been run against the real CLI and could not complete a run, so
-it is not registered. It comes back once it has been verified.
+**There is no `copilot` provider.** An adapter exists in the source, but it has
+never completed a run against the real CLI, so it is not registered.
 
 ## What this will not do
 
